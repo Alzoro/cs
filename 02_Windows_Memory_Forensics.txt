@@ -33,6 +33,7 @@ CTF CLUE → ARTIFACT → VOLATILITY PLUGIN MAPPING
 | Process launched by another process     | Parent/child relationship               | windows.pstree                                                 |
 | Command executed / command line         | Process command line                    | windows.cmdline                                                |
 | PowerShell executed                     | powershell.exe / PowerShell artifacts   | windows.pstree, windows.cmdline                                |
+| Process owner / account SID / privilege | Process SIDs                            | windows.getsids                                                |
 | Malicious process / injected code       | Process injection                       | windows.malfind                                                |
 | Hidden process                          | Process hiding                          | windows.psxview                                                |
 | Network connection / attacker IP / port | TCP/UDP connections                     | windows.netscan                                                |
@@ -144,7 +145,23 @@ Plugin: windows.cmdline
 What it does: Displays process arguments and command-line arguments used during execution.
 When to use: To see what arguments were passed to administrative tools, cmd, or powershell.exe (e.g., hidden script contents, URLs).
 Typical CTF clue: "What was the command arguments of the powershell process?"
-Example command: python vol.py -f memory.raw windows.cmdline
+Example commands:
+  python vol.py -f memory.raw windows.cmdline
+  python.exe .\vol.py -f "E:\Linux VM\CTF\temp_extract_dir\aa.dmp" windows.cmdline --pid 3692
+
+*CTF TIP (Filtering in PowerShell)*:
+To filter or search process command lines for specific patterns (like a malicious 10-letter process name), you can pipe the output to Select-String:
+  python.exe .\vol.py -f "E:\Linux VM\CTF\temp_extract_dir\aa.dmp" windows.cmdline | Select-String '\b[A-Za-z]{10}\.exe\b'
+
+========================================
+WINDOWS.GETSIDS
+========================================
+Plugin: windows.getsids
+What it does: Displays Security Identifiers (SIDs) associated with processes.
+When to use: To check process owner accounts/privileges, or identify processes running under high-privileged accounts (like SYSTEM/Administrator) vs user accounts.
+Typical CTF clue: "What is the SID of the user running the suspicious process?"
+Example command:
+  python.exe .\vol.py -f "E:\Linux VM\CTF\temp_extract_dir\aa.dmp" windows.getsids --pid 3692
 
 ========================================
 WINDOWS.STRINGS

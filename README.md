@@ -61,7 +61,7 @@ Click on any category to view its corresponding cheat sheet:
    *Windows Registry analysis (`Registry Explorer`, `RECmd`, `RegRipper` plugins, auto-start persistence) and specialized Zimmerman artifact parsers (`PECmd`, `EvtxECmd`, `LECmd`, `JLECmd`, `SBECmd`, `RBCmd`, `MFTECmd`).*  
    * **Common Extensions**: `.hve` (Amcache.hve), `.DAT` (NTUSER.DAT), `.pf` (Prefetch), `.lnk` (Shortcuts), `$MFT`, `automaticDestinations-ms` (Jump Lists), `SAM`, `SYSTEM`, `SOFTWARE`
 5. [**05_Disk_FileSystem_Forensics.txt**](./05_Disk_FileSystem_Forensics.txt)  
-   *Raw partition analysis and metadata inspection using The Sleuth Kit (`mmls`, `fls`, `icat`, `fsstat`, `istat`, `ils`).*  
+   *Raw partition analysis, metadata inspection, and file recovery using The Sleuth Kit (`mmls`, `fls`, `icat`, `fsstat`, `istat`, `ils`, `tsk_recover`) and GUI platforms (`FTK Imager`, `Autopsy`).*  
    * **Common Extensions**: `.E01`, `.dd`, `.img`, `.vmdk`, `.raw`
 6. [**06_Steganography.txt**](./06_Steganography.txt)  
    *Image and audio steganography using `steghide` (JPEG/BMP/WAV/AU), `zsteg` (PNG/BMP LSB planes/channels), and automated web triage via `Aperi'Solve`.*  
@@ -89,7 +89,7 @@ Click on any category to view its corresponding cheat sheet:
 | `.pf` (Prefetch)    | Windows Artifact Forensics    | PECmd.exe           | [04_Windows_Artifact_Forensics.txt](./04_Windows_Artifact_Forensics.txt) |
 | `.lnk` (LNK shortcuts)| Windows Artifact Forensics  | LECmd.exe           | [04_Windows_Artifact_Forensics.txt](./04_Windows_Artifact_Forensics.txt) |
 | `$MFT` (NTFS MFT)   | Windows Artifact Forensics    | MFTECmd.exe         | [04_Windows_Artifact_Forensics.txt](./04_Windows_Artifact_Forensics.txt) |
-| `.E01` / `.dd` / `.img` | Disk/File-System Forensics | mmls / fls / icat   | [05_Disk_FileSystem_Forensics.txt](./05_Disk_FileSystem_Forensics.txt) |
+| `.E01` / `.dd` / `.img` | Disk/File-System Forensics | mmls / fls / FTK Imager | [05_Disk_FileSystem_Forensics.txt](./05_Disk_FileSystem_Forensics.txt) |
 | `.jpg` / `.png` / `.bmp` | Steganography             | zsteg / Steghide    | [06_Steganography.txt](./06_Steganography.txt) |
 | `.wav` / `.au` (Audio) | Steganography               | steghide info       | [06_Steganography.txt](./06_Steganography.txt) |
 | `.eml` / `.msg`     | Email Forensics               | Thunderbird / editor| [07_Email_Forensics.txt](./07_Email_Forensics.txt) |

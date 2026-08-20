@@ -33,6 +33,9 @@ To list and extract files from a raw partition, follow this sequential workflow:
 3. Locate the target file's Inode (metadata address) in the listing, and extract the file:
    icat -o <offset> image.dd <inode> > recovered_file.png
 
+Alternatively, to recursively recover all files (both allocated and unallocated) from the partition:
+   tsk_recover -o <offset> image.dd recovered_output/
+
 ================================================================================
 MMLS
 ================================================================================
@@ -113,3 +116,55 @@ Options:
   -e         ➔ List all metadata structures.
   -p         ➔ Display orphan Inodes (unallocated but still referenced).
 Example: ils -o 2048 image.dd
+
+================================================================================
+TSK_RECOVER
+================================================================================
+Tool / Command: tsk_recover
+Category: Disk/File-System Forensics
+Purpose: Export and recover files from an image file system to a local directory.
+When to use: To recursively extract all files (allocated, unallocated, or deleted) from a partition to a target folder on your analyst machine.
+Syntax: tsk_recover [options] image output_dir
+Options:
+  -o <offset>➔ Specify partition starting sector offset.
+  -a         ➔ Recover only allocated files.
+  -e         ➔ Recover all files (allocated and unallocated).
+Examples:
+  tsk_recover -o 2048 image.dd recovered_files/
+  tsk_recover -a -o 4096 physical.img output_dir/
+
+================================================================================
+FTK IMAGER
+================================================================================
+Tool / Command: FTK Imager (GUI / CLI)
+Category: Disk/File-System Forensics
+Purpose: Create, verify, mount, and browse forensic disk images.
+When to use: When you want a GUI to browse a disk image filesystem, preview files (hex/text), export specific files, calculate hashes, or verify image integrity.
+Typical GUI Workflow:
+  1. File -> Add Evidence Item -> Image File -> Browse to image (.E01, .dd, .img).
+  2. Expand the Evidence Tree (Evidence Item -> Partition -> File System).
+  3. Browse folders and select files to preview (Hex, Text, or Rich preview tabs).
+  4. Right-click on target files/folders -> Export Files to extract them.
+CLI Command (ftkimager):
+  ftkimager source_file destination_file [options]
+CLI Options:
+  --help     ➔ Show CLI help and options.
+  --e01      ➔ Create EnCase E01 image format.
+  --verify   ➔ Verify hashes of the image after creation.
+
+================================================================================
+AUTOPSY
+================================================================================
+Tool / Command: Autopsy (GUI)
+Category: Disk/File-System Forensics / Automated Triage
+Purpose: Automated digital forensics platform built on The Sleuth Kit.
+When to use: For automated artifact parsing, keyword searches, registry parsing, timeline analysis, and browsing deleted files in a visual dashboard.
+Typical GUI Workflow:
+  1. Case -> New Case -> Enter case metadata.
+  2. Add Data Source -> Disk Image or VM File -> Select image.
+  3. Select Ingest Modules to run (e.g., File Type Identification, Keyword Search, Web Artifacts, Hash Lookup).
+  4. Once analysis completes, browse results in the tree navigation panel:
+     - Web History / Web Downloads
+     - Deleted Files / Exif Metadata
+     - Registry Analyzer / User Activity
+     - Keyword Search hits
