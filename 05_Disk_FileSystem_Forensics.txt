@@ -1,0 +1,115 @@
+================================================================================
+DISK & FILE-SYSTEM FORENSICS CHEAT SHEET
+================================================================================
+
+This cheat sheet covers disk partition analysis, filesystem layout extraction, and recovering files from forensic images.
+
+================================================================================
+IMAGE FORMATS & CONCEPTS
+================================================================================
+
+RAW DISK IMAGES (.dd, .img, .raw):
+- Bit-by-bit copy of a physical storage device.
+- Contains no metadata, headers, or compression (flat file).
+- Universally compatible with all forensic tools.
+
+EXPERT WITNESS FORMAT / ENCASE (.E01):
+- Contains acquisition metadata (case numbers, timestamps, investigator notes).
+- Supports data compression and encryption.
+- Includes embedded MD5/SHA-1 validation hashes to verify image integrity.
+
+================================================================================
+THE SLEUTHKIT (TSK) FILE RECOVERY WORKFLOW
+================================================================================
+
+To list and extract files from a raw partition, follow this sequential workflow:
+
+1. Examine partition layout and find the partition's starting sector offset:
+   mmls image.dd
+         ↓
+2. Recursively list files and directories inside that partition by passing the offset:
+   fls -r -p -o <offset> image.dd
+         ↓
+3. Locate the target file's Inode (metadata address) in the listing, and extract the file:
+   icat -o <offset> image.dd <inode> > recovered_file.png
+
+================================================================================
+MMLS
+================================================================================
+Tool / Command: mmls
+Category: Disk/File-System Forensics
+Purpose: Examine partition tables and determine sector layouts.
+When to use: Given a physical disk image, use this to locate the start of the data partitions.
+Syntax: mmls [options] image
+Options:
+  -t <type>  ➔ Force partition table type (e.g. gpt, dos).
+  -o <offset>➔ Sector offset where partition table starts.
+Example: mmls image.dd
+
+================================================================================
+FLS
+================================================================================
+Tool / Command: fls
+Category: Disk/File-System Forensics
+Purpose: List directory entries, files, and deleted files.
+When to use: Browsing files and directories inside a partition.
+Syntax: fls [options] image [inode]
+Options:
+  -r         ➔ Recursively list directories and files.
+  -p         ➔ Show the full path prefix for each entry.
+  -o <offset>➔ Specify partition starting sector offset (from mmls).
+  -d         ➔ Display deleted entries only.
+Examples:
+  fls -r -p -o 2048 image.dd
+  fls -d -r -p -o 4096 physical.img
+
+================================================================================
+ICAT
+================================================================================
+Tool / Command: icat
+Category: Disk/File-System Forensics
+Purpose: Recover file contents using its Inode address.
+When to use: When you find a target file's Inode and need to dump the raw file contents to disk.
+Syntax: icat [options] image inode
+Options:
+  -o <offset>➔ Specify partition starting sector offset (from mmls).
+  -s         ➔ Extract slack space contents of the file.
+Example: icat -o 2048 image.dd 1526 > flag.zip
+
+================================================================================
+FSSTAT
+================================================================================
+Tool / Command: fsstat
+Category: Disk/File-System Forensics
+Purpose: Display high-level filesystem configuration details.
+When to use: To find superblock info, volume labels, block sizes, or OS types.
+Syntax: fsstat [options] image
+Options:
+  -o <offset>➔ Specify partition starting sector offset.
+Example: fsstat -o 2048 image.dd
+
+================================================================================
+ISTAT
+================================================================================
+Tool / Command: istat
+Category: Disk/File-System Forensics
+Purpose: Display metadata details of a specific Inode / file record.
+When to use: Checking file permissions, owner UID/GID, size, and MACB timestamps.
+Syntax: istat [options] image inode
+Options:
+  -o <offset>➔ Specify partition starting sector offset.
+Example: istat -o 2048 image.dd 1245
+
+================================================================================
+ILS
+================================================================================
+Tool / Command: ils
+Category: Disk/File-System Forensics
+Purpose: List metadata structures (Inodes) and their allocation status.
+When to use: Finding unallocated (deleted/free) Inodes to look for raw data chunks.
+Syntax: ils [options] image
+Options:
+  -o <offset>➔ Specify partition starting sector offset.
+  -e         ➔ List all metadata structures.
+  -p         ➔ Display orphan Inodes (unallocated but still referenced).
+Example: ils -o 2048 image.dd

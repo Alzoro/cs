@@ -1,0 +1,133 @@
+================================================================================
+STEGANOGRAPHY CHEAT SHEET
+================================================================================
+
+This cheat sheet covers tools for embedding, detecting, and extracting data hidden inside cover media such as images and audio files.
+
+================================================================================
+STEGHIDE
+================================================================================
+
+Tool / Command: steghide
+Category: Steganography
+
+PURPOSE
+steganography program that hides data in various kinds of image and audio files. The color- or sample-frequencies are not changed, making the embedding resistant to first-order statistical tests.
+
+WHEN TO USE
+When you have a cover file (image or audio) and suspect a secret payload is hidden inside using a passphrase.
+
+SYNTAX
+steghide [command] [options]
+
+COMMANDS
+embed      ➔ Embed a secret file in a cover file.
+extract    ➔ Extract hidden data from a stego file.
+info       ➔ Display information about a stego/cover file (reveals if data is hidden and the format).
+
+OPTIONS
+-sf <file> ➔ Specify stego file (the file containing hidden data). Used in extraction/info.
+-cf <file> ➔ Specify cover file (the file to hide data inside). Used in embedding/info.
+-ef <file> ➔ Specify embedded file (the file containing the secret data). Used in embedding.
+-p <pass>  ➔ Specify the passphrase (can be omitted to prompt interactively).
+
+SUPPORTED COVER FORMATS
+- JPEG/JPG (Image)
+- BMP / Bitmap (Image)
+- WAV (Audio)
+- AU (Audio)
+*IMPORTANT NOTE:* Steghide is NOT limited to image formats (JPEG/BMP); it also fully supports audio files (WAV/AU) as cover files.
+
+EXAMPLES
+steghide info -sf image.jpg
+steghide extract -sf secret.wav -p "password123"
+steghide embed -cf cover.bmp -ef flag.txt -sf stego.bmp -p "pass"
+
+CTF TIP
+If it prompts for a password and you don't have one, try pressing Enter (blank password) or brute-force it using stegcracker/stegseek.
+
+================================================================================
+ZSTEG
+================================================================================
+
+Tool / Command: zsteg
+Category: Steganography
+
+PURPOSE
+zsteg detects and extracts hidden data in LSB (Least Significant Bit) steganography in images.
+
+WHEN TO USE
+When analyzing PNG or BMP images where LSB steganography is suspected.
+*IMPORTANT NOTE:* zsteg is primarily for PNG and BMP formats. It is NOT a general-purpose JPEG steganography tool.
+
+SYNTAX
+zsteg [options] image.png
+
+COMMAND-LINE OPTIONS (Using "-")
+-a, --all              ➔ Try all known methods (LSB, MSB, OpenStego, Camouflage, etc.).
+-E, --extract <name>   ➔ Extract a specified payload from a channel/bit plane.
+-b, --bits <num>       ➔ Specify the number of bits per pixel (1..8).
+-c, --channels <list>  ➔ Specify image color channels (e.g. r, g, b, a).
+-o, --order <str>      ➔ Specify pixel traversal order (e.g. xby, ybx, etc.).
+-P, --prime            ➔ Analyze/extract using prime pixels/bytes.
+-s, --strings <str>    ➔ Control string searching (yes/no/only).
+-n, --min-str-len <num>➔ Set minimum string length (default is 3).
+-l, --limit <bytes>    ➔ Limit the number of bytes checked.
+-v, --verbose          ➔ Run in verbose mode.
+-q, --quiet            ➔ Run in quiet mode (suppress warnings).
+
+LSB/MSB TECHNIQUES SUPPORTED:
+- LSB (Least Significant Bit)
+- MSB (Most Significant Bit)
+- zlib-compressed data
+- OpenStego
+- Camouflage 1.2.1
+- LSB with the Eratosthenes set (prime pixels)
+- Bit shifting (--shift)
+- Bit stepping (--step)
+- Bit inversion (--invert)
+- Pixel alignment (--pixel-align)
+
+PAYLOAD COMPONENTS (Used within extraction strings, do NOT use "-")
+r                      ➔ Red channel.
+g                      ➔ Green channel.
+b                      ➔ Blue channel.
+a                      ➔ Alpha channel (transparency).
+lsb                    ➔ Least significant bit.
+msb                    ➔ Most significant bit.
+b1, b2, b3, b4...      ➔ Bit planes (b1 = bit 1, b2 = bit 2, etc.).
+
+EXAMPLES
+zsteg -a image.png
+zsteg -E "b1,r,lsb" image.png
+zsteg -E "b2,g,msb" image.png --invert
+
+CTF TIP
+Look at the output channels. If you see readable text or zip headers in a channel (e.g., "b1,rgb,lsb,yx"), extract it:
+zsteg -E "b1,rgb,lsb,yx" image.png > extracted_payload.bin
+
+================================================================================
+APERI'SOLVE
+================================================================================
+
+Tool / Command: Aperi'Solve
+Category: Steganography
+
+PURPOSE
+Aperi'Solve is a web-based automated steganography and image forensics analysis platform.
+
+WHEN TO USE
+When you want to run quick automated triage on an image file (.jpg, .png, .bmp, .gif) to check for various common steganography vectors without typing many commands.
+
+SYNTAX
+Web interface: https://www.aperisolve.com/ (Upload file via browser)
+
+CTF USE CASES / AUTOMATED TOOLS RUN
+Aperi'Solve automates the execution of:
+- ExifTool (Metadata)
+- binwalk (Embedded files extraction)
+- zsteg (PNG/BMP LSB steganography)
+- steghide (JPEG/BMP/WAV extraction attempt)
+- outguess (Steganography tool for JPEGs)
+- stegdetect (Detects stego algorithms in JPEGs)
+- view of color planes / bit-planes (visualizing red, green, blue channels at different bit levels)

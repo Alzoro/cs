@@ -1,0 +1,294 @@
+================================================================================
+WINDOWS MEMORY FORENSICS (VOLATILITY 3) CHEAT SHEET
+================================================================================
+
+This cheat sheet covers memory forensics using Volatility 3, including process analysis, network identification, persistence detection, and credential extraction.
+
+================================================================================
+VOLATILITY MEMORY INVESTIGATION LOGIC
+================================================================================
+
+Memory Dump File (.raw, .mem, .dmp)
+  ↓
+windows.info (Identify OS, kernel base, and profile details)
+  ↓
+Process Investigation (windows.pstree / windows.pslist / windows.cmdline)
+  ↓
+Network Investigation (windows.netscan)
+  ↓
+Malware & Code Injection (windows.malfind / windows.vadinfo)
+  ↓
+Persistence & Registry (windows.svcscan / windows.registry.* / windows.shimcachemem)
+  ↓
+Dumping Files & Secrets (windows.dumpfiles / windows.hashdump / windows.lsadump)
+
+================================================================================
+CTF CLUE → ARTIFACT → VOLATILITY PLUGIN MAPPING
+================================================================================
+
+| If question says...                     | Think of...                             | Start with                                                     |
+| --------------------------------------- | --------------------------------------- | -------------------------------------------------------------- |
+| IIS / web server / web application      | w3wp.exe                                | windows.pstree                                                 |
+| Service launches / service persistence  | services.exe, services                  | windows.svcscan                                                |
+| Process launched by another process     | Parent/child relationship               | windows.pstree                                                 |
+| Command executed / command line         | Process command line                    | windows.cmdline                                                |
+| PowerShell executed                     | powershell.exe / PowerShell artifacts   | windows.pstree, windows.cmdline                                |
+| Malicious process / injected code       | Process injection                       | windows.malfind                                                |
+| Hidden process                          | Process hiding                          | windows.psxview                                                |
+| Network connection / attacker IP / port | TCP/UDP connections                     | windows.netscan                                                |
+| Listening port                          | Network sockets                         | windows.netscan                                                |
+| DLL loaded by a process                 | Loaded modules                          | windows.dlllist                                                |
+| Hidden or unlinked DLL                  | DLL injection/hiding                    | windows.ldrmodules                                             |
+| Driver / kernel module                  | Drivers                                 | windows.driverscan, windows.modules                            |
+| Kernel base                             | ntoskrnl.exe                            | windows.modules                                                |
+| Scheduled task persistence              | Scheduled tasks                         | windows.scheduled_tasks                                        |
+| Registry persistence                    | Registry Run keys, etc.                 | windows.registry.*                                             |
+| Startup / Startup folder                | Startup persistence                     | windows.filescan, process paths                                |
+| File / executable on disk               | File objects / process path             | windows.filescan, windows.cmdline                              |
+| Browser activity                        | Browser processes/files                 | Process/file artifacts                                         |
+| Credentials / hashes                    | SAM/LSA                                 | windows.hashdump, windows.lsadump                              |
+| Malware / suspicious executable         | Process + files + memory                | windows.pslist, windows.pstree, windows.malfind, windows.filescan|
+| Timeline / when something happened      | Timestamps                              | windows.timeliner                                              |
+| USB device                              | Registry/device artifacts               | Registry plugins                                               |
+| Recently executed program               | UserAssist / Shimcache                  | windows.registry.userassist, windows.shimcachemem              |
+
+================================================================================
+VOLATILITY 3 PLUGINS REFERENCE
+================================================================================
+
+========================================
+WINDOWS.INFO
+========================================
+Plugin: windows.info
+What it does: Identifies OS version, architecture, kernel base address, and build info of the memory dump.
+When to use: Run first to establish baseline system details before executing other plugins.
+Typical CTF clue: "What OS build was running on the system?" or "Identify kernel base address."
+Example command: python vol.py -f memory.raw windows.info
+
+========================================
+WINDOWS.PSLIST
+========================================
+Plugin: windows.pslist
+What it does: Lists running processes by walking the active process list.
+When to use: To identify running processes, PIDs, parent PIDs, start times, and exit times.
+Typical CTF clue: "What was the PID of the suspicious process?"
+Example command: python vol.py -f memory.raw windows.pslist
+
+========================================
+WINDOWS.PSTREE
+========================================
+Plugin: windows.pstree
+What it does: Displays parent-child relationships of running processes in a tree layout.
+When to use: To identify anomalous execution chains (e.g., cmd.exe spawned by w3wp.exe or powershell.exe spawned by explorer.exe).
+Typical CTF clue: "Identify if w3wp.exe launched any child shells."
+Example command: python vol.py -f memory.raw windows.pstree
+
+========================================
+WINDOWS.PSSCAN
+========================================
+Plugin: windows.psscan
+What it does: Scans memory for pool allocations to locate inactive, exited, or hidden processes.
+When to use: To detect processes terminated by malware or deliberately unlinked from the active process list to hide.
+Typical CTF clue: "Find processes that exited or were hidden from pslist."
+Example command: python vol.py -f memory.raw windows.psscan
+
+========================================
+WINDOWS.PSXVIEW
+========================================
+Plugin: windows.psxview
+What it does: Compares process lists across different internal OS structures (pslist, psscan, thrdproc, etc.) to highlight mismatches.
+When to use: Specifically to detect rootkits or malware hiding processes.
+Typical CTF clue: "Find the hidden process ID."
+Example command: python vol.py -f memory.raw windows.psxview
+
+========================================
+WINDOWS.VADINFO
+========================================
+Plugin: windows.vadinfo
+What it does: Displays Virtual Address Descriptor (VAD) node information for a specific process's memory space, showing page protection permissions.
+When to use: To analyze memory pages mapped to processes, checking for executable and writeable space (PAGE_EXECUTE_READWRITE).
+Typical CTF clue: "Examine memory layout protection flags for PID 1024."
+Example command: python vol.py -f memory.raw windows.vadinfo --pid 1024
+
+========================================
+WINDOWS.MALFIND
+========================================
+Plugin: windows.malfind
+What it does: Identifies injected code/hollowed processes by scanning VAD descriptors for PAGE_EXECUTE_READWRITE page protections containing MZ headers or assembly instructions.
+When to use: When process injection is suspected, or when looking for shellcode/malicious DLLs running in memory.
+Typical CTF clue: "Identify the process containing injected malware code."
+Example command: python vol.py -f memory.raw windows.malfind
+
+========================================
+WINDOWS.NETSCAN
+========================================
+Plugin: windows.netscan
+What it does: Scans memory for active network connections, sockets, listener ports, local/remote IPs, and matching process IDs.
+When to use: To identify attacker C2 channels, listening ports, remote connections, and network indicators of compromise (IOCs).
+Typical CTF clue: "Find the IP address the attacker connected to."
+Example command: python vol.py -f memory.raw windows.netscan
+
+========================================
+WINDOWS.FILESCAN
+========================================
+Plugin: windows.filescan
+What it does: Scans physical memory for FILE_OBJECT structures, listing cached files and paths.
+When to use: To identify files that were open, executed, or loaded in memory (e.g., config files, documents, keys).
+Typical CTF clue: "Locate the file path of secret_notes.txt."
+Example command: python vol.py -f memory.raw windows.filescan
+
+========================================
+WINDOWS.CMDLINE
+========================================
+Plugin: windows.cmdline
+What it does: Displays process arguments and command-line arguments used during execution.
+When to use: To see what arguments were passed to administrative tools, cmd, or powershell.exe (e.g., hidden script contents, URLs).
+Typical CTF clue: "What was the command arguments of the powershell process?"
+Example command: python vol.py -f memory.raw windows.cmdline
+
+========================================
+WINDOWS.STRINGS
+========================================
+Plugin: windows.strings
+What it does: Correlates an external list of strings and their offsets back into process virtual address space.
+When to use: To identify which process contains specific string values (like flags or signatures) in its memory space.
+Typical CTF clue: "Which process had the string 'flag{...}' in its memory space?"
+Example command: python vol.py -f memory.raw windows.strings --strings-file strings_offsets.txt
+
+========================================
+WINDOWS.DLLLIST
+========================================
+Plugin: windows.dlllist
+What it does: Lists the loaded dynamic link libraries (DLLs) for a specific process.
+When to use: To verify if a process loaded a malicious DLL or is executing from an unexpected directory path.
+Typical CTF clue: "Verify loaded modules for the svchost.exe process."
+Example command: python vol.py -f memory.raw windows.dlllist --pid 524
+
+========================================
+WINDOWS.LDRMODULES
+========================================
+Plugin: windows.ldrmodules
+What it does: Compares DLL listings from different internal process structures (InLoadOrderModuleList, InMemoryOrderModuleList, InInitializationOrderModuleList) to detect hidden/unusual DLLs.
+When to use: When you suspect a process has loaded a hidden or unlinked malicious DLL (DLL injection/hiding).
+Typical CTF clue: "Detect hidden or unlinked DLLs loaded in the process."
+Example command: python vol.py -f memory.raw windows.ldrmodules --pid 1024
+*CTF TIP:* An injected/unusual DLL may show:
+  False  False  False
+(meaning the module is missing/unlinked from the InLoad, InMem, and InInit order lists to evade standard enumeration).
+
+========================================
+WINDOWS.SVCSCAN
+========================================
+Plugin: windows.svcscan
+What it does: Scans for Windows service records, showing service name, binary path, startup type, and state.
+When to use: When looking for persistence mechanisms established via malicious services.
+Typical CTF clue: "What service was used to maintain persistence?"
+Example command: python vol.py -f memory.raw windows.svcscan
+
+========================================
+WINDOWS.MODULES
+========================================
+Plugin: windows.modules
+What it does: Lists loaded kernel modules (drivers).
+When to use: To identify loaded kernel modules or check for rootkits.
+Typical CTF clue: "Locate the kernel base address or loaded drivers."
+Example command: python vol.py -f memory.raw windows.modules
+
+========================================
+WINDOWS.DRIVERSCAN
+========================================
+Plugin: windows.driverscan
+What it does: Scans for driver structures in memory.
+When to use: To locate loaded driver objects that might have been unlinked or hidden.
+Typical CTF clue: "Find the address of the custom driver object."
+Example command: python vol.py -f memory.raw windows.driverscan
+
+========================================
+WINDOWS.SCHEDULED_TASKS
+========================================
+Plugin: windows.scheduled_tasks
+What it does: Extracts information about scheduled tasks registered on the system.
+When to use: To search for task-based persistence.
+Typical CTF clue: "Find the scheduled task name that launches malware."
+Example command: python vol.py -f memory.raw windows.scheduled_tasks
+
+========================================
+WINDOWS.REGISTRY.HIVELIST
+========================================
+Plugin: windows.registry.hivelist
+What it does: Locates and lists virtual and physical memory addresses of registry hives.
+When to use: To identify hives (SAM, SYSTEM, SOFTWARE, NTUSER.DAT) for further registry printing.
+Typical CTF clue: "Locate the address of the NTUSER.DAT hive."
+Example command: python vol.py -f memory.raw windows.registry.hivelist
+
+========================================
+WINDOWS.REGISTRY.PRINTKEY
+========================================
+Plugin: windows.registry.printkey
+What it does: Prints the registry keys, subkeys, and values for a given hive path.
+When to use: To extract persistence indicators (e.g. Run keys), USB history, or system configuration settings.
+Typical CTF clue: "Check the registry Run keys for suspicious entries."
+Example command: python vol.py -f memory.raw windows.registry.printkey --key "Microsoft\Windows\CurrentVersion\Run"
+
+========================================
+WINDOWS.REGISTRY.USERASSIST
+========================================
+Plugin: windows.registry.userassist
+What it does: Parses the UserAssist registry keys to show applications executed by users, including count and last execution time.
+When to use: To reconstruct user activity and trace when specific GUI programs were run.
+Typical CTF clue: "Find the execution count of suspicious_tool.exe."
+Example command: python vol.py -f memory.raw windows.registry.userassist
+
+========================================
+WINDOWS.SHIMCACHEMEM
+========================================
+Plugin: windows.shimcachemem
+What it does: Parses the Shimcache/AppCompatCache table in memory, which records metadata for recently executed binaries.
+When to use: To identify executable files that ran on the system, their path, and modification times.
+Typical CTF clue: "Find evidence of application execution for files on disk."
+Example command: python vol.py -f memory.raw windows.shimcachemem
+
+========================================
+WINDOWS.HASHDUMP
+========================================
+Plugin: windows.hashdump
+What it does: Extracts Windows local account password hashes (LM and NTLM) from the SAM/SYSTEM registry hives in memory.
+When to use: When you need user hashes to crack passwords or conduct pass-the-hash investigations.
+Typical CTF clue: "Retrieve the NTLM hash of the Administrator account."
+Example command: python vol.py -f memory.raw windows.hashdump
+
+========================================
+WINDOWS.LSADUMP
+========================================
+Plugin: windows.lsadump
+What it does: Extracts LSA secrets (secrets, passwords, domain credentials) from memory.
+When to use: To recover cleartext passwords, service accounts, or domain credentials.
+Typical CTF clue: "Find cleartext passwords or service account secrets."
+Example command: python vol.py -f memory.raw windows.lsadump
+
+========================================
+WINDOWS.TIMELINER
+========================================
+Plugin: windows.timeliner
+What it does: Creates a chronological timeline of events (process creation, network connections, file access) from memory artifacts.
+When to use: To build an incident response timeline showing the sequence of attacker actions.
+Typical CTF clue: "Construct a timeline of events around 10:15 UTC."
+Example command: python vol.py -f memory.raw windows.timeliner
+
+========================================
+WINDOWS.DUMPFILES
+========================================
+Plugin: windows.dumpfiles
+What it does: Dumps memory-cached files (PEs, configuration files, text documents) to disk.
+When to use: Once you find a file of interest using windows.filescan, extract it using its virtual address.
+Typical CTF clue: "Extract and examine the contents of the malicious payload."
+Example command: python vol.py -f memory.raw windows.dumpfiles --virtaddr 0xd80e1a2f03c0
+
+========================================
+WINDOWS.HANDLES
+========================================
+Plugin: windows.handles
+What it does: Lists open handles (files, registry keys, semaphores, ports) held by processes.
+When to use: To identify resources a suspicious process is interacting with in real time.
+Typical CTF clue: "What registry key handle did the process open?"
+Example command: python vol.py -f memory.raw windows.handles --pid 1024

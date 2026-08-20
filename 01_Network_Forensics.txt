@@ -1,0 +1,280 @@
+================================================================================
+NETWORK FORENSICS CHEAT SHEET
+================================================================================
+
+This cheat sheet covers network forensic workflows, packet analysis, display filters, GUI extraction techniques, and file transfer commands.
+
+================================================================================
+INVESTIGATION WORKFLOW & GUI TECHNIQUES
+================================================================================
+
+COMMON PCAP WORKFLOW:
+PCAP (Load the packet capture file)
+  ↓
+Identify protocols (Determine the distribution of traffic using Statistics -> Protocol Hierarchy)
+  ↓
+Find suspicious IP (Look at conversations, high packet counts, or odd port numbers)
+  ↓
+Filter traffic (Apply specific IP/protocol/port filters to isolate the threat)
+  ↓
+Inspect requests (Analyze application-layer packets like HTTP requests, DNS queries, SMB requests)
+  ↓
+Inspect headers/payload (Look for suspicious user-agents, parameters, or hidden strings)
+  ↓
+Follow stream (Right-click -> Follow TCP/UDP Stream to reconstruct session conversations)
+  ↓
+Extract IOC/answer (Save files via Export Objects, copy credentials, or retrieve the flag)
+
+FOLLOW TCP / UDP STREAM:
+- Purpose: Reconstruct the raw data exchange of a specific session in a human-readable format.
+- Action: Right-click any TCP/UDP packet and choose Follow -> TCP Stream (or UDP Stream).
+- CTF Tip: Useful for reading plaintext credentials (FTP, HTTP POST), executed commands (Telnet, shell traffic), or extracting transferred file fragments.
+
+EXPORT OBJECTS:
+- Purpose: Reconstruct and save files transferred over the network.
+- Action: Go to File -> Export Objects -> select protocol (HTTP, SMB, TFTP, IMF, etc.).
+- CTF Tip: Instantly dumps images, executables, scripts, or documents transferred during the capture.
+
+================================================================================
+BASIC PROTOCOLS
+================================================================================
+
+Filter: http         ➔ Show all HTTP traffic.
+Filter: tls          ➔ Show all encrypted HTTPS and TLS traffic.
+Filter: dns          ➔ Show all DNS queries and responses.
+Filter: tcp          ➔ Show all TCP traffic.
+Filter: udp          ➔ Show all UDP traffic.
+Filter: icmp         ➔ Show all ICMP/ping traffic.
+Filter: smb          ➔ Show all legacy SMB1 traffic.
+Filter: smb2         ➔ Show all SMB2 and SMB3 traffic.
+Filter: ftp          ➔ Show all FTP control and data traffic.
+Filter: ssh          ➔ Show all SSH traffic.
+Filter: dhcp         ➔ Show all DHCP traffic.
+Filter: arp          ➔ Show all ARP traffic.
+Filter: tftp         ➔ Show all TFTP file transfer traffic.
+
+================================================================================
+IP & PORT FILTERING
+================================================================================
+
+Filter: ip.src == X.X.X.X  ➔ Traffic originating from a specific source IP.
+Filter: ip.dst == X.X.X.X  ➔ Traffic destined to a specific destination IP.
+Filter: ip.addr == X.X.X.X ➔ Match traffic where the specified IP is either source or destination.
+Filter: tcp.port == X      ➔ Match TCP traffic on a specific port.
+Filter: tcp.srcport == X   ➔ Match TCP traffic originating from a specific source port.
+Filter: tcp.dstport == X   ➔ Match TCP traffic destined to a specific destination port.
+Filter: udp.port == X      ➔ Match UDP traffic on a specific port.
+
+================================================================================
+HTTP FILTERS
+================================================================================
+
+Filter: http.request
+Use: Show only HTTP request packets.
+
+Filter: http.response
+Use: Show only HTTP response packets.
+
+Filter: http.request.uri
+Use: Inspect or display HTTP request URIs.
+
+Filter: http.request.uri contains "filename"
+Use: Filter HTTP requests where the URI string contains a specific file/word (e.g. contains "flag.zip").
+
+Filter: http.request.uri contains "admin"
+Use: Filter HTTP requests containing "admin" in the URI path.
+
+Filter: http.request.method == "GET"  ➔ Filter HTTP GET requests.
+Filter: http.request.method == "POST" ➔ Filter HTTP POST requests (often contains form data).
+Filter: http.request.method == "OPTIONS"➔ Filter HTTP OPTIONS requests (server capabilities query).
+Filter: http.request.method == "PROPFIND"➔ Filter WebDAV PROPFIND requests (directory retrieval).
+
+Filter: http.user_agent
+Use: Inspect all HTTP User-Agent strings.
+
+Filter: http.user_agent contains "Nmap"
+Use: Search for scanning tools or specific user-agents.
+
+================================================================================
+DNS FILTERS
+================================================================================
+
+Filter: dns.flags.response == 0➔ Show only DNS queries (sent by clients).
+Filter: dns.flags.response == 1➔ Show only DNS responses (sent by servers).
+Filter: dns.qry.name contains "example"➔ Filter DNS queries searching for a specific domain name.
+
+================================================================================
+SMB / SMB2 FILTERS
+================================================================================
+
+Filter: smb          ➔ Show SMB1 traffic.
+Filter: smb2         ➔ Show SMB2/SMB3 traffic.
+Filter: smb2.cmd == 3➔ Filter SMB2 Tree Connect commands (shares accessed).
+Filter: smb2.cmd == 5➔ Filter SMB2 Create/Open operations (files opened).
+Filter: smb2.cmd == 8➔ Filter SMB2 Read operations.
+Filter: smb2.cmd == 9➔ Filter SMB2 Write operations.
+
+SMB2 COMMAND MAPPING:
+- 0 = Negotiate
+- 1 = Session Setup
+- 2 = Logoff
+- 3 = Tree Connect (Identifying SMB share access like \\10.0.2.15\IPC$ or \Documents)
+- 4 = Tree Disconnect
+- 5 = Create/Open (Identify files being created or opened)
+- 6 = Close
+- 8 = Read
+- 9 = Write
+
+*IMPORTANT TIP:* Look at the protocol name in Wireshark first, then use its corresponding field namespace. For example, use "smb2.cmd" for SMB2/SMB3 instead of "smb.cmd".
+
+================================================================================
+TCP, ICMP, FTP, SSH, TLS, ARP & NTLM FILTERS
+================================================================================
+
+Filter: tcp.flags.syn == 1 ➔ Match TCP packets with the SYN flag set.
+Filter: tcp.flags.syn == 1 && tcp.flags.ack == 0 ➔ Match initial connection requests (scanning).
+Filter: icmp         ➔ Show all ICMP/ping traffic.
+Filter: ftp          ➔ Show FTP control connection packets.
+Filter: ssh          ➔ Show encrypted SSH tunnel traffic.
+Filter: tls          ➔ Show encrypted HTTPS/TLS packets.
+Filter: arp          ➔ Show ARP resolution requests and responses.
+Filter: ntlmssp.challenge.target_name➔ Extract target server/domain advertised in NTLM challenges.
+
+================================================================================
+CONTENT SEARCHING, TIMEFRAMES, & COMBINATIONS
+================================================================================
+
+Filter: http contains "password"➔ Search HTTP payloads for the plaintext string "password".
+Filter: tcp contains "password" ➔ Search TCP payloads for the string "password".
+Filter: tcp contains "flag"     ➔ Search TCP payloads for the string "flag".
+Filter: frame contains "flag"   ➔ Search the entire packet frame (including headers) for the string "flag".
+*WARNING:* These filters operate on raw bytes of the packet. They can produce false positives but are extremely powerful for finding plaintext flags.
+
+Filter: frame.time >= "Aug 17, 2026 10:00:00"➔ Filter packets captured at or after a specific time.
+Filter: frame.time <= "Aug 17, 2026 10:30:00"➔ Filter packets captured at or before a specific time.
+
+Filter: ip.src == 10.0.2.4 && http➔ Show HTTP traffic coming from a specific attacker IP.
+Filter: ip.dst == 10.0.2.15 && http.request➔ Show HTTP requests made to a specific destination server IP.
+Filter: ip.src == 10.0.2.4 && ip.dst == 10.0.2.15 && smb2➔ Show SMB2 traffic flowing between two hosts.
+Filter: ip.src == 10.0.2.4 && smb2.cmd == 3➔ Show SMB2 share connections originating from a specific host.
+
+Filter: tcp.stream eq 0➔ Filter packets belonging to a specific TCP stream index (index 0).
+
+================================================================================
+AUTHENTICATION & USERNAME DISCOVERY BY PROTOCOL
+================================================================================
+
+Use this table for quick filter lookup of authenticating accounts:
+
+| Protocol        | Wireshark Filter | What to Look For                                        |
+| --------------- | ---------------- | ------------------------------------------------------- |
+| SMB/NTLM        | ntlmssp          | User Name, Domain Name, Workstation in NTLMSSP_AUTH     |
+| SMB2            | smb2             | Session Setup command                                   |
+| Kerberos        | kerberos         | CNameString, realm, principal, sname                    |
+| LDAP            | ldap             | Bind Request username, simple/SASL fields               |
+| FTP             | ftp              | USER commands (plaintext)                               |
+| Telnet          | telnet           | username typed in plaintext                             |
+| HTTP            | http             | Basic Auth (Basic ...), form parameters, cookies, login |
+| RDP             | rdp              | authentication-related fields                           |
+| TDS / MSSQL     | tds              | Login7 -> User name, Server name, Database name         |
+| MySQL           | mysql            | login/authentication packets                            |
+| POP3            | pop              | USER username command (plaintext)                       |
+| IMAP            | imap             | LOGIN username password command (plaintext)             |
+| SMTP            | smtp             | AUTH command                                            |
+| SSH             | ssh              | Encrypted; look for connection handshakes               |
+| NFS             | nfs              | UID/GID values                                          |
+| SIP             | sip              | From/To/Authorization usernames                         |
+| IRC             | irc              | NICK, USER commands (plaintext)                         |
+
+SMB / NTLM:
+- Filter: `ntlmssp` or `ntlmssp.auth`
+- *CTF TIP:* Look inside the NTLMSSP_AUTH block fields for "User name", "Domain name", and "Workstation" to identify authenticating accounts.
+
+KERBEROS:
+- Filter: `kerberos`
+- *CTF TIP:* Check the "CNameString" (Client Name String), "realm", and "sname" (Server Name) fields to identify the client/user involved.
+
+LDAP:
+- Filter: `ldap`
+- *CTF TIP:* Search for Bind Request packets. Expand the packet and look at the "name", "simple", or "SASL" fields to find usernames.
+
+FTP:
+- Filter: `ftp.request.command == "USER"`
+- *CTF TIP:* Check the subsequent packet or stream to find PASS (password) commands: ftp.request.command == "PASS".
+
+HTTP:
+- Filter: `http.request`
+- *CTF TIP:* Look for Basic Authentication headers (e.g., Authorization: Basic ...). Wireshark automatically decodes these base64 values. Also search body variables for parameters like "username", "user", "login", "email", or "password".
+
+TDS / MSSQL:
+- Filter: `tds` (Default port: 1433)
+- *CTF TIP:* Inspect "Login7" packets and check fields for "User name", "Server name", and "Database name".
+
+MYSQL:
+- Filter: `mysql` (Default port: 3306)
+- *CTF TIP:* Inspect MySQL login/authentication packets.
+
+POP3 / IMAP / SMTP:
+- POP3 Filter: `pop` ➔ Look for plaintext "USER <username>" requests.
+- IMAP Filter: `imap` ➔ Look for plaintext "LOGIN <username> <password>" requests.
+- SMTP Filter: `smtp` ➔ Filter for SMTP "AUTH" commands to identify user credentials.
+
+================================================================================
+GENERAL PORT-TO-PROTOCOL MAPPING
+================================================================================
+
+When you do not know which protocol is running, filter by IP and check Statistics ➔ Conversations. Map the port to the likely protocol:
+
+- 21    ➔ FTP (Plaintext credentials)
+- 22    ➔ SSH (Encrypted shell)
+- 23    ➔ Telnet (Plaintext commands/usernames)
+- 25    ➔ SMTP (Mail transfer)
+- 53    ➔ DNS (Name resolution)
+- 80    ➔ HTTP (Plaintext web traffic)
+- 88    ➔ Kerberos (Domain authentication)
+- 110   ➔ POP3 (Plaintext email retrieval)
+- 135   ➔ RPC (Remote Procedure Call)
+- 139   ➔ NetBIOS / SMB (Windows sharing)
+- 143   ➔ IMAP (Plaintext email access)
+- 389   ➔ LDAP (Active Directory query)
+- 443   ➔ HTTPS (Encrypted web traffic)
+- 445   ➔ SMB2/SMB3 (Windows file sharing)
+- 1433  ➔ MSSQL / TDS (SQL Server connection)
+- 3306  ➔ MySQL (MySQL Database connection)
+- 3389  ➔ RDP (Remote Desktop Protocol)
+- 5985  ➔ WinRM (Windows Remote Management)
+
+================================================================================
+WGET (FILE TRANSFER UTILITY)
+================================================================================
+
+Tool / Command: wget
+Category: Network Forensics
+
+PURPOSE
+Command-line utility for downloading files from the Web (supports HTTP, HTTPS, and FTP).
+
+WHEN TO USE
+When you are on a remote server/VM and need to retrieve challenge files, scripts, tools, or download large forensic disk images directly from a URL.
+
+SYNTAX
+wget [options] URL
+
+OPTIONS
+-O <file>  ➔ Write documents/files to a specific output name (rename downloaded file).
+-c         ➔ Resume a partially-downloaded file (great for large PCAPs or disk images).
+-q         ➔ Quiet mode (turn off output, useful for scripts).
+-r         ➔ Recursive downloading (follow links in the page).
+--user-agent=<str>➔ Set the User-Agent HTTP header.
+--header=<str>➔ Send a custom HTTP header (e.g. cookies or authentication tokens).
+--no-check-certificate ➔ Don't validate SSL certificates (useful for self-signed CTF platforms).
+
+EXAMPLES
+wget https://ctf.domain/challenge/evidence.pcap
+wget -O output_flag.zip https://ctf.domain/download?id=123
+wget -c https://forensics.org/images/disk_dump.raw
+wget --no-check-certificate https://internal-ctf/malware.exe
+
+CTF TIP
+If a server blocks command-line downloads or requires user session cookies, copy the User-Agent and Cookie header from your browser Developer tools (F12) and pass them to wget:
+wget --user-agent="Mozilla/5.0..." --header="Cookie: session=xyz123..." https://ctf.domain/protected_file.zip

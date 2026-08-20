@@ -1,0 +1,156 @@
+================================================================================
+WINDOWS ARTIFACT FORENSICS CHEAT SHEET
+================================================================================
+
+This cheat sheet covers Windows host forensics, focusing on Windows Registry analysis, auto-run persistence, and Eric Zimmerman's parsing utilities.
+
+================================================================================
+REGISTRY FORENSICS TOOLS OVERVIEW
+================================================================================
+
+| Tool                         | Type                    | Main Use                                           |
+| ---------------------------- | ----------------------- | -------------------------------------------------- |
+| **Registry Explorer**        | GUI (Zimmerman)         | Manually browse and analyze registry hives visually|
+| **RECmd**                    | CLI (Zimmerman)         | Parse/query registry hives automatically (batch)   |
+| **RegRipper**                | CLI (Harlan Carvey)     | Extract important artifacts using targeted plugins |
+| **Registry Viewer**          | GUI (FTK)               | Examine registry hives                             |
+| **KAPE**                     | Collection+Processing   | Collect registry artifacts and process them        |
+| **Zimmerman Registry tools** | CLI/GUI                 | Broad registry artifact analysis                   |
+
+========================================
+REGISTRY EXPLORER
+========================================
+Tool / Command: RegistryExplorer.exe
+Purpose: Visual analysis of Windows Registry hives (NTUSER.DAT, SYSTEM, SOFTWARE, SAM, SECURITY).
+*CTF TIP:* Registry Explorer is highly useful for navigating subkeys and checking registry keys' Last Write timestamps.
+
+========================================
+RECMD
+========================================
+Tool / Command: RECmd.exe
+Purpose: CLI query and batch processing parser for registry hives.
+Syntax: RECmd.exe -f <path_to_hive> --bn <batch_file.reb> --csv <output_dir>
+
+========================================
+REGRIPPER
+========================================
+Tool / Command: rip.pl / rip.exe
+Purpose: Run targeted plugins to extract forensic artifacts from hives into plaintext reports.
+Syntax: rip.pl -r <hive_file> -f <profile_or_plugin>
+Examples:
+  rip.pl -r NTUSER.DAT -f ntuser > ntuser_report.txt
+  rip.pl -r SYSTEM -f system > system_report.txt
+
+================================================================================
+KEY REGISTRY FORENSIC CHECKS
+================================================================================
+
+Ensure you check these high-value registry locations during investigations:
+- **Run / RunOnce**: Software auto-start persistence (SOFTWARE\Microsoft\Windows\CurrentVersion\Run)
+- **UserAssist**: Tracking GUI app execution history (NTUSER.DAT\Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist)
+- **ShellBags**: Folders and directories viewed in Windows Explorer (NTUSER.DAT\Software\Microsoft\Windows\Shell\Bags)
+- **RecentDocs**: Recently opened files (NTUSER.DAT\Software\Microsoft\Windows\CurrentVersion\Explorer\RecentDocs)
+- **TypedPaths**: Folder paths manually typed in Explorer (NTUSER.DAT\Software\Microsoft\Windows\CurrentVersion\Explorer\TypedPaths)
+- **MountedDevices**: Mounted drives and volumes (SYSTEM\MountedDevices)
+- **USBSTOR**: USB device connection history (SYSTEM\CurrentControlSet\Enum\USBSTOR)
+- **Services**: Configured system services (SYSTEM\CurrentControlSet\Services)
+
+================================================================================
+ERIC ZIMMERMAN WINDOWS ARTIFACT PARSERS
+================================================================================
+
+QUICK ARTIFACT-TO-TOOL MAPPING:
+- Amcache.hve       ➔ AmcacheParser
+- Prefetch (.pf)    ➔ PECmd
+- Event Logs (.evtx)➔ EvtxECmd
+- Registry hives    ➔ RECmd
+- NTFS $MFT         ➔ MFTECmd
+- LNK files         ➔ LECmd
+- Jump Lists        ➔ JLECmd
+- ShellBags         ➔ SBECmd
+- SRUM DB (SRUDB.dat)➔ SrumECmd
+- Recycle Bin       ➔ RBCmd
+- Timeline Cache    ➔ WxTCmd
+
+========================================
+AMCACHEPARSER
+========================================
+Tool / Command: AmcacheParser.exe
+Purpose: Parse Amcache.hve hive files to retrieve installation paths and binary hashes.
+Syntax: AmcacheParser.exe -f "Amcache.hve" --csv ".\output"
+*CTF TIP:* Look in the output `Amcache_UnassociatedFileEntries.csv` file for the targeted program's SHA1 hash, compiler timestamp, file size, and publisher details.
+*POWERSHELL SEARCH PATTERNS:*
+  Select-String -Path ".\output\*.csv" -Pattern "sysinternals.exe"
+  Select-String -Path ".\output\*.csv" -Pattern "SHA1"
+
+========================================
+PECMD (PREFETCH PARSER)
+========================================
+Tool / Command: PECmd.exe
+Purpose: Parse Windows Prefetch files (.pf) to prove application execution.
+Syntax:
+  Single file: PECmd.exe -f "C:\Windows\Prefetch\PROGRAM.EXE-XXXX.pf"
+  Directory: PECmd.exe -d "C:\Windows\Prefetch" --csv ".\output"
+Key details extracted: Execution counts, last execution timestamps, and referenced directory/file paths.
+
+========================================
+EVTXECMD (EVENT LOG PARSER)
+========================================
+Tool / Command: EvtxECmd.exe
+Purpose: Parse Windows Event Logs (.evtx) to structured output.
+Syntax: EvtxECmd.exe -f "Security.evtx" --csv ".\output"
+
+========================================
+LECMD (LNK SHORTCUT PARSER)
+========================================
+Tool / Command: LECmd.exe
+Purpose: Parse Windows LNK shortcut files.
+Syntax: LECmd.exe -f "malicious.lnk"
+Key details extracted: Target paths, arguments, working directories, local volume info, MAC addresses, and creation timestamps.
+
+========================================
+JLECMD (JUMP LIST PARSER)
+========================================
+Tool / Command: JLECmd.exe
+Purpose: Parse Jump Lists (automaticDestinations-ms / customDestinations-ms).
+Syntax: JLECmd.exe -f "automaticDestinations-ms-file"
+Key details: Recently opened user files and application execution history.
+
+========================================
+SBECMD (SHELLBAGS PARSER)
+========================================
+Tool / Command: SBECmd.exe
+Purpose: Parse ShellBags registry keys to check directory access.
+Syntax: SBECmd.exe -d ".\ShellBags" --csv ".\output"
+
+========================================
+SRUMECMD (SRUM PARSER)
+========================================
+Tool / Command: SrumECmd.exe
+Purpose: Parse the System Resource Usage Monitor (SRUM) database.
+Syntax: SrumECmd.exe -f "SRUDB.dat" --csv ".\output"
+Key details: Network data usage and execution resources consumed per application.
+
+========================================
+RBCMD (RECYCLE BIN PARSER)
+========================================
+Tool / Command: RBCmd.exe
+Purpose: Parse Recycle Bin metadata files ($I files).
+Syntax: RBCmd.exe -d "C:\$Recycle.Bin" --csv ".\output"
+Key details: Deleted file names, original directory paths, deletion timestamps, and user SIDs.
+
+========================================
+MFTECMD & MFTEXPLORER (MFT PARSER)
+========================================
+Tool / Command: MFTECmd.exe (CLI) / MFTExplorer.exe (GUI)
+Purpose: Parse and navigate the NTFS Master File Table ($MFT).
+Syntax: MFTECmd.exe -f "$MFT" --csv ".\output"
+Key details: Reconstruct file creations, modifications, access events, and deletion timelines.
+
+================================================================================
+DISTINCTION: SPECIALIZED VS GENERAL REGISTRY ANALYSIS
+================================================================================
+
+Do not confuse specialized artifact tools with general registry analysis:
+- Use **AmcacheParser / PECmd / EvtxECmd / LECmd / JLECmd / MFTECmd** to analyze specific Windows host artifacts directly.
+- Use **Registry Explorer / RECmd / RegRipper** to perform general query, browsing, and plugin extraction on raw registry hives.

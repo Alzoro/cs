@@ -1,0 +1,81 @@
+================================================================================
+CTF ARTIFACT IDENTIFICATION CHEAT SHEET
+================================================================================
+
+This cheat sheet maps forensic file extensions and clues directly to their respective forensic categories, recommended starting tools, and cheat sheet files.
+
+================================================================================
+FAST LOOKUP TABLE
+================================================================================
+
+| Clue/File Extension | Forensic Category             | Start Tool          | Cheat Sheet File                  |
+| ------------------- | ----------------------------- | ------------------- | --------------------------------- |
+| .pcap / .pcapng     | Network Forensics             | Wireshark / tshark  | 01_Network_Forensics.txt          |
+| .raw / .mem / .dmp  | Windows Memory Forensics      | Volatility 3        | 02_Windows_Memory_Forensics.txt   |
+| .evtx               | Log Forensics                 | EvtxECmd / Viewer   | 03_Log_Forensics.txt              |
+| Linux Logs/History  | Log Forensics                 | Text editors / grep | 03_Log_Forensics.txt              |
+| SQL Server Logs     | Log Forensics                 | Event Viewer        | 03_Log_Forensics.txt              |
+| Registry Hives      | Windows Artifact Forensics    | Registry Explorer   | 04_Windows_Artifact_Forensics.txt  |
+| Amcache.hve         | Windows Artifact Forensics    | AmcacheParser.exe   | 04_Windows_Artifact_Forensics.txt  |
+| .pf (Prefetch)      | Windows Artifact Forensics    | PECmd.exe           | 04_Windows_Artifact_Forensics.txt  |
+| .lnk (LNK shortcuts)| Windows Artifact Forensics    | LECmd.exe           | 04_Windows_Artifact_Forensics.txt  |
+| $MFT (NTFS MFT)     | Windows Artifact Forensics    | MFTECmd.exe         | 04_Windows_Artifact_Forensics.txt  |
+| .E01 / .dd / .img   | Disk/File-System Forensics    | mmls / fls / icat   | 05_Disk_FileSystem_Forensics.txt   |
+| .jpg / .png / .bmp  | Steganography                 | zsteg / Steghide    | 06_Steganography.txt              |
+| .wav / .au (Audio)  | Steganography                 | steghide info       | 06_Steganography.txt              |
+| .eml / .msg         | Email Forensics               | Thunderbird / editor| 07_Email_Forensics.txt             |
+| .docx / .pdf        | Malware/File Analysis         | ExifTool            | 08_Malware_File_Analysis.txt      |
+| .exe / .dll / .elf  | Malware/File Analysis         | Detect It Easy (DIE)| 08_Malware_File_Analysis.txt      |
+| Browser Files       | Malware/File Analysis         | DB Browser (SQLite) | 08_Malware_File_Analysis.txt      |
+
+================================================================================
+DETAILED ARTIFACT TRIAGE STRATEGY
+================================================================================
+
+========================================
+01. NETWORK FORENSICS (.pcap, .pcapng)
+========================================
+- Think: Network connections, data exfiltration, protocol analysis, client/server traffic.
+- Workflow: Open in Wireshark, analyze Protocol Hierarchy, inspect Conversations, filter by suspicious IPs/ports, search content for plaintext flags, follow TCP/UDP streams, and export transferred objects. Refer to 01_Network_Forensics.txt.
+
+========================================
+02. WINDOWS MEMORY FORENSICS (.raw, .mem, .dmp)
+========================================
+- Think: Volatile memory, running processes, injected code, memory-cached passwords, command histories.
+- Workflow: Run Volatility 3 "windows.info" to get OS context, analyze processes with "windows.pstree", map active network sockets with "windows.netscan", scan for code injections with "windows.malfind", check loaded/hidden modules with "windows.dlllist" and "windows.ldrmodules", and inspect open file descriptors/registry paths with "windows.handles". Refer to 02_Windows_Memory_Forensics.txt.
+
+========================================
+03. LOG FORENSICS (.evtx, syslog, auth.log, database logs)
+========================================
+- Think: Linux shell histories, privilege transitions (su/sudo), successful/failed Windows logons, SQL server database connection errors.
+- Workflow: Inspect bash history files (.bash_history). Examine /var/log/auth.log. Audit Windows Security log (Event ID 4624/4625) and SQL Server log (Event ID 18454/18456). Pivot with Linux text processing command-line utilities (grep, awk, sed, cut, tr). Refer to 03_Log_Forensics.txt.
+
+========================================
+04. WINDOWS ARTIFACT FORENSICS (Registry, Prefetch, MFT, LNK, Jump Lists)
+========================================
+- Think: Auto-start persistence, user execution history (UserAssist), directory browsing (ShellBags), connected USBs (USBSTOR), services, recent files.
+- Workflow: Visual registry browsing via Registry Explorer. Query keys via RECmd. Extract profiles via RegRipper. Match target system artifacts with specialized Zimmerman parsers (PECmd for Prefetch, LECmd for LNK, RBCmd for Recycle Bin, MFTECmd for MFT). Refer to 04_Windows_Artifact_Forensics.txt.
+
+========================================
+05. DISK/FILE-SYSTEM FORENSICS (.E01, .dd, .img)
+========================================
+- Think: Dead-box forensics, file systems, deleted files, system layouts.
+- Workflow: Run "mmls" to find partition starting sector offsets. List files recursively using "fls -r -p -o <offset>". Extract target files using "icat -o <offset> <inode>". Retrieve file metadata using "istat" and "fsstat". Refer to 05_Disk_FileSystem_Forensics.txt.
+
+========================================
+06. STEGANOGRAPHY (.jpg, .png, .bmp, .wav)
+========================================
+- Think: Hidden payloads, color channels, bit planes, audio frequencies.
+- Workflow: Run ExifTool for metadata. If PNG/BMP, run "zsteg -a" to detect LSB stego. If JPEG/BMP/WAV/AU, check for hidden payloads with "steghide info/extract". Upload to Aperi'Solve for automated web-based analysis. Refer to 06_Steganography.txt.
+
+========================================
+07. EMAIL FORENSICS (.eml, .msg)
+========================================
+- Think: Email header tracing, origin server IP spoofing, authentication verification (SPF/DKIM/DMARC), phishing attachments, display name spoofing.
+- Workflow: Open EML/MSG in text editors. Read "Received" headers from bottom (oldest MTA hop) to top (newest MTA hop) to identify sender IP address. Verify DKIM/SPF alignment. Extract and calculate hash of attachments for VT lookups. Refer to 07_Email_Forensics.txt.
+
+========================================
+08. MALWARE/FILE ANALYSIS (.exe, .dll, .elf, .docx, .pdf)
+========================================
+- Think: Static binary analysis, compilers, linkers, packers, string extraction, cryptographic hashing.
+- Workflow: Check compiler/packer signatures and section entropy via Detect It Easy (DIE). Scan ASCII/Unicode strings. Generate SHA256 of the binary and query it on VirusTotal to find sandbox behaviors, contacted IP addresses, and DNS domain relationships. Refer to 08_Malware_File_Analysis.txt.

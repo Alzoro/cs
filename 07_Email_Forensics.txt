@@ -1,0 +1,67 @@
+================================================================================
+EMAIL FORENSICS CHEAT SHEET
+================================================================================
+
+This cheat sheet covers the analysis of email messages (.eml, .msg) to trace sender origins, audit authentication headers, and investigate phishing attempts.
+
+================================================================================
+INVESTIGATION WORKFLOW
+================================================================================
+
+1. Open EML/MSG file in a text editor (for raw headers) or email client (like Thunderbird).
+2. Extract metadata: Sender, Recipient, Date, Subject.
+3. Trace Sender Origin IP by reading the "Received" headers from the bottom (source) to the top (destination).
+4. Audit email authentication status: check SPF, DKIM, and DMARC result headers.
+5. Extract and analyze any attachments (calculate hashes and run them on VirusTotal).
+6. Inspect URLs in the body for spoofed hyperlinked text or redirects.
+
+================================================================================
+HEADER PARSING & SENDER IP TRACING
+================================================================================
+
+THE "RECEIVED" HEADER PIPELINE:
+As an email travels from the sender to the recipient, each mail transfer agent (MTA) appends a "Received" header to the *top* of the file.
+- **The oldest (first) MTA hop is at the bottom of the list.**
+- **The newest (last) MTA hop is at the top of the list.**
+
+Example Header:
+Received: from mail.attacker.com (192.168.10.15) by mx.google.com ...
+➔ This tells you that the mail server received the email from the IP address `192.168.10.15` (the sender's server or client IP).
+
+*CTF TIP:* Always look at the bottom-most `Received:` headers to find the actual originating client IP address that generated the email.
+
+================================================================================
+PHISHING INDICATORS & AUTHENTICATION AUDITING
+================================================================================
+
+Check these key headers to detect spoofing:
+
+1. **SPF (Sender Policy Framework)**:
+   - Header: `Received-SPF:`
+   - Purpose: Verifies if the sending server's IP is authorized by the domain's DNS TXT record.
+   - Values: `Pass` (Authorized) or `Fail`/`SoftFail` (Unauthorized IP).
+
+2. **DKIM (DomainKeys Identified Mail)**:
+   - Header: `DKIM-Signature:`
+   - Purpose: Cryptographic signature that verifies the email contents were not modified in transit.
+   - Values: check if the signature signature verifies successfully (`dkim=pass`).
+
+3. **DMARC (Domain-based Message Authentication, Reporting, and Conformance)**:
+   - Header: `Authentication-Results:`
+   - Purpose: Orchestrates SPF and DKIM alignments. If both fail, DMARC instructs receivers to block (`reject`) or quarantine (`quarantine`) the email.
+
+4. **Spoofed Display Names**:
+   - Check if the "From:" header matches the actual SMTP sending account:
+     `From: "Bank Admin" <attacker@hackermail.com>`
+     (Display Name says Bank Admin, but actual email domain is attacker@hackermail.com).
+
+================================================================================
+ATTACHMENTS & MALWARE ANALYSIS
+================================================================================
+
+- Locate attachments inside raw EML files (usually base64 encoded block headers).
+- Extract and decode the attachment:
+  `base64 -d attachment.b64 > payload.exe`
+- Generate SHA256 of the attachment:
+  `sha256sum payload.exe`
+- Query the SHA256 hash on VirusTotal to check for malicious signatures, contacted domains, or C2 IP addresses.
