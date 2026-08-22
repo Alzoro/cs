@@ -2,11 +2,100 @@
 WINDOWS ARTIFACT FORENSICS CHEAT SHEET
 ================================================================================
 
-This cheat sheet covers Windows host forensics, focusing on Windows Registry analysis, auto-run persistence, and Eric Zimmerman's parsing utilities.
+This cheat sheet covers Windows host forensics, focusing on quick triage, Windows registry analysis, event logs, execution history, persistence mechanisms, and Eric Zimmerman's parsing utilities.
 
 ================================================================================
-REGISTRY FORENSICS TOOLS OVERVIEW
+1. QUICK CTF TRIAGE FLOW & TOP PATHS
 ================================================================================
+
+                 WINDOWS DISK IMAGE
+                         │
+                         ▼
+                  Identify OS (SYSTEM/SOFTWARE Hive)
+                         │
+                         ▼
+                    C:\Users\ (User profiles & SIDs)
+                         │
+        ┌────────────────┼────────────────┐
+        ▼                ▼                ▼
+   NTUSER.DAT       Downloads          Browser (History, logins)
+   UsrClass.dat     PSReadLine         (Chrome/Edge/Firefox)
+   UserAssist       Temp / LNK
+   ShellBags        Recycle Bin
+        │
+        ▼
+C:\Windows\System32\config\ (SAM, SYSTEM, SOFTWARE, SECURITY)
+        │
+   ┌────┼─────────┐
+   ▼    ▼         ▼
+ SAM  SYSTEM   SOFTWARE
+  │     │         │
+  │     │         ├── Installed Software, Run Keys, Persistence
+  │     ├── Services (7045), Network Setup, TimeZone
+  │     └── Users, RIDs, password hashes
+  │
+  ▼
+Event Logs (Security, System, App, PowerShell, Sysmon)
+  │
+  ├── Logon (4624/4625), Process (4688), Privilege (4672)
+  ├── Service Installed (7045/4697), Log Cleared (1102)
+  └── Script Block Logging (4104)
+  │
+  ▼
+Execution Artifacts (Prefetch, Amcache, Shimcache)
+  │
+  ▼
+Timeline Analysis (MFT, USN Journal, Registry LastWrite)
+
+--------------------------------------------------------------------------------
+THE TOP 15 FORENSIC PATHS TO MEMORIZE
+--------------------------------------------------------------------------------
+1.  C:\Windows\System32\config\SAM (Users, RIDs, password hash info)
+2.  C:\Windows\System32\config\SYSTEM (Services, computer name, timezone, network)
+3.  C:\Windows\System32\config\SOFTWARE (Installed software, OS info, Run keys)
+4.  C:\Windows\System32\winevt\Logs\ (Event Logs)
+5.  C:\Windows\Prefetch\ (Application execution history)
+6.  C:\Windows\AppCompat\Programs\Amcache.hve (Executed/installed binaries & hashes)
+7.  C:\Windows\System32\Tasks\ (Scheduled tasks definitions)
+8.  C:\Users\<USER>\NTUSER.DAT (User profile registry hive - UserAssist, Run keys)
+9.  C:\Users\<USER>\AppData\Local\Microsoft\Windows\UsrClass.dat (User ShellBags)
+10. C:\Users\<USER>\AppData\Roaming\Microsoft\Windows\Recent\ (Recent files / LNKs)
+11. C:\Users\<USER>\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt
+12. C:\Users\<USER>\AppData\Local\Temp\ (User temporary execution directory)
+13. C:\$Recycle.Bin\ (Deleted files metadata and content)
+14. C:\Windows\System32\sru\SRUDB.dat (System Resource Usage Monitor DB)
+15. $MFT & $Extend\$UsnJrnl:$J (NTFS Master File Table & USN Journal change log)
+
+--------------------------------------------------------------------------------
+COMMON FORENSIC FILE EXTENSIONS
+--------------------------------------------------------------------------------
+- .evtx   ➔ Windows Event Logs
+- .dat    ➔ Registry/User hives (NTUSER.DAT, UsrClass.dat)
+- .hve    ➔ Hive extension (Amcache.hve)
+- .pf     ➔ Prefetch files
+- .lnk    ➔ Windows shortcuts
+- .db/.sqlite ➔ Chrome/Firefox history, ConnectedDevicesPlatform activity cache
+- .log    ➔ Text logs (Firewall, IIS, services)
+- .ps1/.bat/.cmd/.vbs/.js ➔ Executable scripts
+- .tmp    ➔ Temporary files
+
+================================================================================
+2. REGISTRY HIVES & ANALYTICAL TOOLS
+================================================================================
+
+| Hive File | Path | Key Forensic Evidence |
+| :--- | :--- | :--- |
+| **SAM** | `System32\config\SAM` | Local users, RIDs, groups, password hashes / login policies |
+| **SYSTEM** | `System32\config\SYSTEM` | CurrentControlSet, computer name, timezone, services, networks |
+| **SOFTWARE**| `System32\config\SOFTWARE`| Installed apps, OS version/build info, persistence Run keys |
+| **SECURITY**| `System32\config\SECURITY`| LSA secrets, cached credentials, local security policies |
+| **DEFAULT** | `System32\config\DEFAULT` | Registry settings applied for the Default User profile |
+| **NTUSER.DAT**| `C:\Users\<USER>\NTUSER.DAT`| User settings, UserAssist (execution), TypedPaths, Run keys |
+| **UsrClass.dat**| `..\AppData\Local\Microsoft\Windows\UsrClass.dat` | ShellBags (Explorer folder navigation), file associations |
+
+--------------------------------------------------------------------------------
+REGISTRY FORENSICS TOOLS OVERVIEW
+--------------------------------------------------------------------------------
 
 | Tool                         | Type                    | Main Use                                           |
 | ---------------------------- | ----------------------- | -------------------------------------------------- |
@@ -41,10 +130,9 @@ Examples:
   rip.pl -r NTUSER.DAT -f ntuser > ntuser_report.txt
   rip.pl -r SYSTEM -f system > system_report.txt
 
-================================================================================
+========================================
 KEY REGISTRY FORENSIC CHECKS
-================================================================================
-
+========================================
 Ensure you check these high-value registry locations during investigations:
 - **Run / RunOnce**: Software auto-start persistence (SOFTWARE\Microsoft\Windows\CurrentVersion\Run)
 - **UserAssist**: Tracking GUI app execution history (NTUSER.DAT\Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist)
@@ -56,7 +144,83 @@ Ensure you check these high-value registry locations during investigations:
 - **Services**: Configured system services (SYSTEM\CurrentControlSet\Services)
 
 ================================================================================
-ERIC ZIMMERMAN WINDOWS ARTIFACT PARSERS
+3. SYSTEM, USER ACCOUNT & NETWORK INFO
+================================================================================
+
+--------------------------------------------------------------------------------
+OS & SYSTEM INFORMATION
+--------------------------------------------------------------------------------
+Registry Keys (HKLM):
+- OS Build & Version: `SOFTWARE\Microsoft\Windows NT\CurrentVersion`
+  Values: `ProductName`, `CurrentBuild`, `CurrentVersion`, `DisplayVersion`, `RegisteredOwner`
+- Computer Name: `SYSTEM\CurrentControlSet\Control\ComputerName\ActiveComputerName`
+  Value: `ComputerName`
+- Time Zone: `SYSTEM\CurrentControlSet\Control\TimeZoneInformation`
+  Values: `TimeZoneKeyName`, `Bias`, `ActiveTimeBias` (offset in minutes from UTC)
+
+--------------------------------------------------------------------------------
+USER ACCOUNTS & LOCATIONS
+--------------------------------------------------------------------------------
+- Accounts/RIDs/Hashes: `SAM\Domains\Account\Users` and `SAM\Domains\Account\Users\Names`
+- Default Profile Locations:
+  - System Profiles: `C:\Users\Public\`, `C:\Users\Default\`
+  - User Profiles: `C:\Users\<USER>\` (Contains Desktop\, Documents\, Downloads\, Pictures\, AppData\)
+  - AppData Paths: `AppData\Local\`, `AppData\LocalLow\`, `AppData\Roaming\`
+
+--------------------------------------------------------------------------------
+NETWORK CONFIGURATION
+--------------------------------------------------------------------------------
+Registry Keys (HKLM):
+- TCP/IP Config: `SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\`
+  Values: `Domain`, `Hostname`, `SearchList`, `NV Domain`
+- Network Interfaces: `SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\<GUID>\`
+  Values: `IPAddress`, `SubnetMask`, `DefaultGateway`, `DhcpIPAddress`, `NameServer` (DNS)
+Files:
+- DNS Hosts File: `C:\Windows\System32\drivers\etc\hosts` (Check for malicious domain mappings)
+
+================================================================================
+4. EVENT LOGS & POWERSHELL ANALYSIS
+================================================================================
+
+Location: `C:\Windows\System32\winevt\Logs\`
+Main Hives: `Security.evtx`, `System.evtx`, `Application.evtx`
+
+--------------------------------------------------------------------------------
+IMPORTANT EVENT IDS REFERENCE
+--------------------------------------------------------------------------------
+| ID | Log / Hive | Meaning & Forensic Utility |
+| ---: | :--- | :--- |
+| **4624** | Security | Successful Logon (Logon Type: 2=Local, 3=Network, 10=RDP) |
+| **4625** | Security | Failed Logon (Brute force verification) |
+| **4634** | Security | Logoff (Session terminated) |
+| **4648** | Security | Logon using explicit credentials (`runas` execution) |
+| **4672** | Security | Special Privileges Assigned (Logged on user has Admin rights) |
+| **4688** | Security | Process Creation (Must enable command-line audit logging) |
+| **4697** | Security | Service Registered (Attacker persistence via system service) |
+| **4720** | Security | User account created |
+| **4722** | Security | User account enabled |
+| **4728** | Security | User added to security-enabled global group |
+| **4732** | Security | User added to security-enabled local group (e.g. Administrators) |
+| **7045** | System | Service installed (Equivalent to 4697 but in System log) |
+| **1102** | Security | Security Audit Log Cleared (Attacker anti-forensics) |
+| **4103** | PowerShell | Module Logging (Captures cmdlet pipeline execution details) |
+| **4104** | PowerShell | Script Block Logging (Captures full plaintext script content) |
+
+*CTF Event Log Priority:* `4624` ➔ `4625` ➔ `4688` ➔ `7045` ➔ `1102` ➔ `4104`
+
+--------------------------------------------------------------------------------
+POWERSHELL & COMMAND ARTIFACTS
+--------------------------------------------------------------------------------
+* **PSReadLine History File**:
+  - Path: `C:\Users\<USER>\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt`
+  - CTF Tip: Essential file to check. Search for commands indicating attacker activity:
+    `powershell`, `IEX`, `Invoke-WebRequest`, `DownloadString`, `EncodedCommand`, `FromBase64String`, `whoami`, `net user`, `net localgroup`
+* **PowerShell Logs**:
+  - Log Name: `Microsoft-Windows-PowerShell%4Operational.evtx`
+  - Look for Event ID 4104 (Script Block Logging) to extract scripts executed entirely in memory.
+
+================================================================================
+5. ERIC ZIMMERMAN WINDOWS ARTIFACT PARSERS
 ================================================================================
 
 QUICK ARTIFACT-TO-TOOL MAPPING:
@@ -148,9 +312,180 @@ Syntax: MFTECmd.exe -f "$MFT" --csv ".\output"
 Key details: Reconstruct file creations, modifications, access events, and deletion timelines.
 
 ================================================================================
-DISTINCTION: SPECIALIZED VS GENERAL REGISTRY ANALYSIS
+6. PERSISTENCE & AUTO-RUN MECHANISMS
 ================================================================================
 
-Do not confuse specialized artifact tools with general registry analysis:
-- Use **AmcacheParser / PECmd / EvtxECmd / LECmd / JLECmd / MFTECmd** to analyze specific Windows host artifacts directly.
+--------------------------------------------------------------------------------
+RUN & RUNONCE KEYS
+--------------------------------------------------------------------------------
+- User-level (HKCU): `Software\Microsoft\Windows\CurrentVersion\Run` and `RunOnce`
+- System-level (HKLM): `SOFTWARE\Microsoft\Windows\CurrentVersion\Run` and `RunOnce`
+- Forensic Value: Look for scripts (`.ps1`, `.vbs`, `.bat`, `.cmd`) or binaries (`.exe`, `.dll`) running from writable directories like `C:\Users\Public\` or `AppData\Local\Temp\`.
+
+--------------------------------------------------------------------------------
+SYSTEM SERVICES
+--------------------------------------------------------------------------------
+- Registry: `HKLM\SYSTEM\CurrentControlSet\Services\`
+- Key Values: Check `ImagePath` (binary location), `ServiceDll` (if running via svchost), `Start` (2=Auto, 3=Manual, 4=Disabled).
+- Event Logs: Search `System.evtx` for Event ID `7045` (Service installed).
+
+--------------------------------------------------------------------------------
+SCHEDULED TASKS
+--------------------------------------------------------------------------------
+- Task XMLs: `C:\Windows\System32\Tasks\`
+- Registry: `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\`
+- Forensic Value: Investigate task name, Author, Actions (program run & arguments), Triggers (on boot, daily, etc.), and creation/modification timestamps.
+
+================================================================================
+7. FILESYSTEM, RECOVERY & USER ACTIVITY
+================================================================================
+
+--------------------------------------------------------------------------------
+NTFS FILE SYSTEM ($MFT & USN JOURNAL)
+--------------------------------------------------------------------------------
+- **Master File Table ($MFT)**:
+  - Location: `C:\$MFT` (Hidden system file)
+  - Evidence: Core NTFS directory database containing filename, directory structure, file size, and MACB timestamps.
+  - Tool: `MFTECmd.exe -f "$MFT" --csv ".\output"`
+- **USN Journal ($UsnJrnl)**:
+  - Location: `C:\$Extend\$UsnJrnl:$J`
+  - Evidence: Transaction log capturing changes to files and directories (creations, deletions, modifications, renames).
+  - Tool: `MFTECmd.exe -f "$J" --csv ".\output"`
+
+--------------------------------------------------------------------------------
+RECYCLE BIN
+--------------------------------------------------------------------------------
+- Location: `C:\$Recycle.Bin\<USER_SID>\`
+- Files inside:
+  - `$Ixxxxxx` ➔ Metadata file (contains original file size, deletion time, and original path).
+  - `$Rxxxxxx` ➔ The actual deleted file content (renamed, but salvageable).
+- Tool: **RBCmd.exe**
+  - Parse: `RBCmd.exe -d "C:\$Recycle.Bin" --csv ".\output"`
+
+--------------------------------------------------------------------------------
+LNK FILES & RECENT FILES
+--------------------------------------------------------------------------------
+- Locations:
+  - Recent files: `C:\Users\<USER>\AppData\Roaming\Microsoft\Windows\Recent\`
+  - Search also: `*.lnk` files across the drive
+- Evidence: shortcut files pointing to target applications or documents. Tells you: target path, volume serial number, local MAC address, timestamps, working directory, launch arguments.
+- Tool: **LECmd.exe**
+  - Parse Single: `LECmd.exe -f "C:\Users\<USER>\Recent\document.lnk"`
+  - Parse Directory: `LECmd.exe -d "C:\Users\<USER>\Recent" --csv ".\output"`
+
+--------------------------------------------------------------------------------
+JUMP LISTS
+--------------------------------------------------------------------------------
+- Locations:
+  - Automatic: `C:\Users\<USER>\AppData\Roaming\Microsoft\Windows\Recent\AutomaticDestinations\`
+  - Custom: `C:\Users\<USER>\AppData\Roaming\Microsoft\Windows\Recent\CustomDestinations\`
+- Evidence: Tracks files pinned or recently opened within specific apps.
+- Tool: **JLECmd.exe**
+  - Parse: `JLECmd.exe -d "C:\Users\<USER>\Recent\AutomaticDestinations" --csv ".\output"`
+
+--------------------------------------------------------------------------------
+SHELLBAGS
+--------------------------------------------------------------------------------
+- Registry: `NTUSER.DAT` and `UsrClass.dat` -> `Software\Microsoft\Windows\Shell\BagMRU` & `Bags`
+- Evidence: Tracks folder navigation history via Windows Explorer. Proves a folder was opened/viewed by a user, even if the folder was later deleted.
+- Tool: **SBECmd.exe**
+  - Parse: `SBECmd.exe -d "C:\Users\<USER>" --csv ".\output"`
+
+================================================================================
+8. APPLICATION & NETWORK ARTIFACTS
+================================================================================
+
+--------------------------------------------------------------------------------
+BROWSER HISTORY & DATA
+--------------------------------------------------------------------------------
+- **Chrome / Edge**:
+  - Paths:
+    - Chrome: `C:\Users\<USER>\AppData\Local\Google\Chrome\User Data\Default\`
+    - Edge: `C:\Users\<USER>\AppData\Local\Microsoft\Edge\User Data\Default\`
+  - Files: `History` (SQLite DB for web visits/downloads), `Cookies`, `Login Data` (Saved logins), `Bookmarks`
+- **Firefox**:
+  - Path: `C:\Users\<USER>\AppData\Roaming\Mozilla\Firefox\Profiles\<profile>\`
+  - Files: `places.sqlite` (History/Downloads), `cookies.sqlite`, `logins.json` & `key4.db` (Encrypted passwords)
+
+--------------------------------------------------------------------------------
+SYSTEM RESOURCE USAGE MONITOR (SRUM)
+--------------------------------------------------------------------------------
+- Database: `C:\Windows\System32\sru\SRUDB.dat`
+- Evidence: Captures 30 to 60 days of historical resource consumption. Details application execution times, active user account SIDs, and bytes sent/received per application over network interfaces.
+- Tool: **SrumECmd.exe**
+  - Parse: `SrumECmd.exe -f "C:\Windows\System32\sru\SRUDB.dat" --csv ".\output"`
+
+--------------------------------------------------------------------------------
+WINDOWS DEFENDER LOGS
+--------------------------------------------------------------------------------
+- Path: `C:\ProgramData\Microsoft\Windows Defender\`
+- Event Logs: `Microsoft-Windows-Windows Defender%4Operational.evtx`
+- Evidence: Malware detection names, paths of quarantined/blocked files, scan actions.
+
+--------------------------------------------------------------------------------
+FIREWALL & HOSTS
+--------------------------------------------------------------------------------
+- Hosts File: `C:\Windows\System32\drivers\etc\hosts` (Look for malicious DNS redirects)
+- Firewall Logs: `C:\Windows\System32\LogFiles\Firewall\pfirewall.log` (Source/destination IPs, ports, and action: ALLOW/DROP)
+
+--------------------------------------------------------------------------------
+TEMP & STARTUP PATHS
+--------------------------------------------------------------------------------
+- System Temp: `C:\Windows\Temp\`
+- User Temp: `C:\Users\<USER>\AppData\Local\Temp\`
+- Startup Folders:
+  - User: `C:\Users\<USER>\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\`
+  - System: `C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\`
+
+--------------------------------------------------------------------------------
+WINDOWS CRASH DUMPS
+--------------------------------------------------------------------------------
+- Crash Dumps: `C:\Windows\Minidump\`, `C:\Windows\MEMORY.DMP` (Analyze using WinDbg or Volatility for memory-only evidence)
+
+--------------------------------------------------------------------------------
+IIS LOGS
+--------------------------------------------------------------------------------
+- Path: `C:\inetpub\logs\LogFiles\`
+- Evidence: Logs inbound HTTP requests to a local web server (client IP, HTTP status codes, method, URI requested, and User-Agent).
+
+================================================================================
+9. TIMELINE ANALYSIS & ARTIFACT TOOL MAPPING
+================================================================================
+
+--------------------------------------------------------------------------------
+ERIC ZIMMERMAN TOOL MAPPING REFERENCE
+--------------------------------------------------------------------------------
+| Artifact | Zimmerman Tool | CLI Command |
+| :--- | :--- | :--- |
+| **Prefetch (.pf)** | PECmd | `PECmd.exe -d "C:\Windows\Prefetch" --csv ".\out"` |
+| **Amcache.hve** | AmcacheParser | `AmcacheParser.exe -f "Amcache.hve" --csv ".\out"` |
+| **Shimcache** | AppCompatCacheParser | `AppCompatCacheParser.exe --csv ".\out"` |
+| **Registry Hives** | RECmd / RegistryExplorer | `RECmd.exe -f <hive> --bn <batch> --csv ".\out"` |
+| **LNK Shortcuts** | LECmd | `LECmd.exe -d "C:\Users\<USER>\Recent" --csv ".\out"` |
+| **Jump Lists** | JLECmd | `JLECmd.exe -d "C:\Users\<USER>\Recent" --csv ".\out"` |
+| **ShellBags** | SBECmd | `SBECmd.exe -d "C:\Users\<USER>" --csv ".\out"` |
+| **NTFS $MFT** | MFTECmd | `MFTECmd.exe -f "$MFT" --csv ".\out"` |
+| **USN Journal ($J)** | MFTECmd | `MFTECmd.exe -f "$J" --csv ".\out"` |
+| **Event Logs (.evtx)**| EvtxECmd | `EvtxECmd.exe -d "C:\Windows\..\Logs" --csv ".\out"` |
+| **Recycle Bin** | RBCmd | `RBCmd.exe -d "C:\$Recycle.Bin" --csv ".\out"` |
+| **SRUM (SRUDB.dat)** | SrumECmd | `SrumECmd.exe -f "SRUDB.dat" --csv ".\out"` |
+| **Timeline Cache** | WxTCmd | `WxTCmd.exe -f "ConnectedDevices...db" --csv ".\out"` |
+
+--------------------------------------------------------------------------------
+TIMELINE RECONSTRUCTION PATTERN
+--------------------------------------------------------------------------------
+Combine evidence using UTC timestamps to reconstruct a timeline of the compromise:
+1. **Download/Ingress**: Browser history (`History`/`places.sqlite`) or network logs shows download of malicious payload.
+2. **File Creation**: MFT (`$MFT`) record shows file creation, and USN Journal (`$UsnJrnl`) confirms directory activity.
+3. **Execution**: Prefetch (`.pf`), Amcache (`.hve`), Shimcache, and `UserAssist` record execution times and execution counts.
+4. **Logon/Access**: Security event logs (ID `4624`/`4625`) show concurrent logon events.
+5. **Persistence Setup**: Tasks (`C:\Windows\System32\Tasks\`), services (ID `7045`), or Run registry keys are updated.
+6. **Command Activity**: PowerShell history log (`ConsoleHost_history.txt`) and Event ID `4104` show exact commands/scripts run by the attacker.
+7. **C2/Egress**: Firewall logs and SRUM show outbound connections and volume of data exfiltrated.
+
+--------------------------------------------------------------------------------
+DISTINCTION: SPECIALIZED VS GENERAL REGISTRY ANALYSIS
+--------------------------------------------------------------------------------
+- Use **AmcacheParser / PECmd / EvtxECmd / LECmd / JLECmd / MFTECmd / RBCmd** to parse and analyze specific host/filesystem artifacts directly.
 - Use **Registry Explorer / RECmd / RegRipper** to perform general query, browsing, and plugin extraction on raw registry hives.
+================================================================================

@@ -11,7 +11,7 @@ In a digital forensics CTF, you are handed raw artifacts or disk images and must
 - **Network Forensics**: Capturing and analyzing protocol sequences, file transfers, and connection histories.
 - **Windows Memory Forensics**: Extracting volatile artifacts from RAM captures (like processes, drivers, and network sockets).
 - **Log Forensics**: Processing text-based log files using Linux command-line utilities, and parsing structured audit records (Windows Security logs and database authentications).
-- **Windows Artifact Forensics**: Diving into Windows registry hives and parsing OS-specific tracking artifacts (Prefetch, LNK, ShellBags).
+- **Windows Artifact Forensics**: Analyzing Windows registry hives, parsing host artifacts (Prefetch, LNK, ShellBags, Jump Lists, Recycle Bin), investigating Event Logs, checking persistence keys/services, and reconstructing attacker timelines.
 - **Disk/File-System Forensics**: Reconstructing partitions and recovering files from raw disk images.
 - **Steganography**: Uncovering hidden data or secret ciphers embedded in cover images or audio streams.
 - **Email Forensics**: Tracing phishing sources, email headers, authentication alignments, and malicious attachments.
@@ -58,8 +58,8 @@ Click on any category to view its corresponding cheat sheet:
    *Linux text processing command-line utilities (`cut`, `tr` with ROT13, `grep`, `awk`, `sed` multi-line scripts) and auditing of successful/failed logons (Windows Security EVTX Event IDs `4624`/`4625`, SQL Server errors `18454`/`18456`).*  
    * **Common Extensions**: `.log`, `.evtx`, `.txt`, `syslog`, `auth.log`
 4. [**04_Windows_Artifact_Forensics.txt**](./04_Windows_Artifact_Forensics.txt)  
-   *Windows Registry analysis (`Registry Explorer`, `RECmd`, `RegRipper` plugins, auto-start persistence) and specialized Zimmerman artifact parsers (`PECmd`, `EvtxECmd`, `LECmd`, `JLECmd`, `SBECmd`, `RBCmd`, `MFTECmd`).*  
-   * **Common Extensions**: `.hve` (Amcache.hve), `.DAT` (NTUSER.DAT), `.pf` (Prefetch), `.lnk` (Shortcuts), `$MFT`, `automaticDestinations-ms` (Jump Lists), `SAM`, `SYSTEM`, `SOFTWARE`
+   *Host triage flow, registry hive analysis (`Registry Explorer`, `RECmd`, `RegRipper`), execution history, persistence (Run keys, services, tasks), filesystem database parsing, and specialized Zimmerman CLI tool syntaxes.*  
+   * **Common Extensions/Files**: `.hve` (Amcache), `.dat`/`.DAT` (NTUSER.DAT, UsrClass.dat), `.pf` (Prefetch), `.lnk` (Shortcuts), `$MFT`, `$UsnJrnl` (`$J`), `automaticDestinations-ms`/`customDestinations-ms` (Jump Lists), `SAM`, `SYSTEM`, `SOFTWARE`, `SECURITY`, `SRUDB.dat` (SRUM), `.evtx` (Defender/Security logs)
 5. [**05_Disk_FileSystem_Forensics.txt**](./05_Disk_FileSystem_Forensics.txt)  
    *Raw partition analysis, metadata inspection, and file recovery using The Sleuth Kit (`mmls`, `fls`, `icat`, `fsstat`, `istat`, `ils`, `tsk_recover`) and GUI platforms (`FTK Imager`, `Autopsy`).*  
    * **Common Extensions**: `.E01`, `.dd`, `.img`, `.vmdk`, `.raw`
@@ -89,6 +89,9 @@ Click on any category to view its corresponding cheat sheet:
 | `.pf` (Prefetch)    | Windows Artifact Forensics    | PECmd.exe           | [04_Windows_Artifact_Forensics.txt](./04_Windows_Artifact_Forensics.txt) |
 | `.lnk` (LNK shortcuts)| Windows Artifact Forensics  | LECmd.exe           | [04_Windows_Artifact_Forensics.txt](./04_Windows_Artifact_Forensics.txt) |
 | `$MFT` (NTFS MFT)   | Windows Artifact Forensics    | MFTECmd.exe         | [04_Windows_Artifact_Forensics.txt](./04_Windows_Artifact_Forensics.txt) |
+| `SRUDB.dat` (SRUM)   | Windows Artifact Forensics    | SrumECmd.exe        | [04_Windows_Artifact_Forensics.txt](./04_Windows_Artifact_Forensics.txt) |
+| `$UsnJrnl` (USN Journal) | Windows Artifact Forensics | MFTECmd.exe        | [04_Windows_Artifact_Forensics.txt](./04_Windows_Artifact_Forensics.txt) |
+| Jump Lists (`*Destinations-ms`) | Windows Artifact Forensics | JLECmd.exe  | [04_Windows_Artifact_Forensics.txt](./04_Windows_Artifact_Forensics.txt) |
 | `.E01` / `.dd` / `.img` | Disk/File-System Forensics | mmls / fls / FTK Imager | [05_Disk_FileSystem_Forensics.txt](./05_Disk_FileSystem_Forensics.txt) |
 | `.jpg` / `.png` / `.bmp` | Steganography             | zsteg / Steghide    | [06_Steganography.txt](./06_Steganography.txt) |
 | `.wav` / `.au` (Audio) | Steganography               | steghide info       | [06_Steganography.txt](./06_Steganography.txt) |

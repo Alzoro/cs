@@ -168,3 +168,300 @@ Typical GUI Workflow:
      - Deleted Files / Exif Metadata
      - Registry Analyzer / User Activity
      - Keyword Search hits
+
+================================================================================
+HIGH-VALUE FILE SYSTEM PATHS FOR CTFs
+================================================================================
+
+When parsing extracted filesystems or browsing mounted disk images, check these 
+high-value files and locations first to extract flags, credentials, timelines, 
+or persistence mechanisms.
+
+LINUX HIGH-VALUE LOCATIONS:
+---------------------------
+Credentials & Auth:
+  /etc/passwd          ➔ User account configurations (shells, home dirs, UID/GID)
+  /etc/shadow          ➔ Salted password hashes (Requires root/system permission to read)
+  /etc/group           ➔ Group memberships
+  /etc/sudoers         ➔ Sudo privilege configuration (shows root-exec status)
+  /etc/hostname        ➔ Hostname of the target system
+
+User Shell Activity & Access:
+  ~/.bash_history      ➔ Commands executed by a user in Bash shell
+  ~/.zsh_history       ➔ Commands executed by a user in Zsh shell
+  ~/.ssh/authorized_keys➔ Public SSH keys allowed access (common backdoor drop point)
+  ~/.ssh/id_rsa        ➔ User's private SSH key (can be used to pivot/connect)
+  ~/.bashrc, ~/.profile➔ Shell startup scripts (look for hidden aliases or malicious code)
+
+Persistence & System Config:
+  /etc/crontab         ➔ System-wide scheduled cron tasks
+  /var/spool/cron/crontabs/ ➔ User-specific scheduled cron tasks (e.g. root)
+  /etc/cron.hourly/, /etc/cron.daily/ ➔ Directories containing scheduled task scripts
+  /etc/systemd/system/ ➔ Custom systemd services (often used for persistence)
+  /etc/rc.local        ➔ Startup scripts executed at boot time
+
+Network & System Info:
+  /etc/hosts           ➔ Static DNS map table
+  /etc/resolv.conf     ➔ Active DNS configuration
+  /var/log/            ➔ Log files (see 03_Log_Forensics.txt)
+  /var/spool/mail/     ➔ User local mailbox files (e.g. root)
+  /var/lib/docker/     ➔ Docker runtime configurations, logs, and volumes
+  /tmp/, /var/tmp/, /dev/shm/ ➔ Writable temp folders (frequent malware drops)
+  /var/www/html/       ➔ Default web root directory (check for web shells)
+
+================================================================================
+WINDOWS HIGH-VALUE LOCATIONS FOR CTFs
+================================================================================
+
+When triaging a Windows file system or disk image, reference these key directories,
+registry paths, and event logs.
+
+01. SYSTEM REGISTRY HIVES (SYSTEM, SOFTWARE, SAM, SECURITY, DEFAULT)
+---------------------------------------------------------------------
+The core Windows configuration database hives.
+Path: C:\Windows\System32\config\
+
+Hives Table:
+| Hive       | Absolute Path                          | Description / Forensic Value                   |
+| ---------- | -------------------------------------- | ---------------------------------------------- |
+| SYSTEM     | C:\Windows\System32\config\SYSTEM     | OS info, computer name, time zone, services   |
+| SOFTWARE   | C:\Windows\System32\config\SOFTWARE   | Installed software list, OS version, run keys |
+| SAM        | C:\Windows\System32\config\SAM        | Local user metadata, RIDs, password NT hashes  |
+| SECURITY   | C:\Windows\System32\config\SECURITY   | Security policy configuration, LSA secrets     |
+| DEFAULT    | C:\Windows\System32\config\DEFAULT    | Default user profile settings                 |
+
+02. USER-SPECIFIC REGISTRY HIVES (NTUSER.DAT & UsrClass.dat)
+------------------------------------------------------------
+NTUSER.DAT (The User's Hive):
+  Path: C:\Users\<username>\NTUSER.DAT
+  Value: Execution counts (UserAssist), shellbags, auto-run keys, typed URLs.
+UsrClass.dat:
+  Path: C:\Users\<username>\AppData\Local\Microsoft\Windows\UsrClass.dat
+  Value: User ShellBags, local file association extensions.
+
+03. PASSWORDS & CREDENTIALS
+---------------------------
+SAM Databases:
+  File: C:\Windows\System32\config\SAM
+  Note: Needs the boot key from the SYSTEM hive to decrypt password hashes.
+Windows Credential Manager (DPAPI Vaults):
+  Paths:
+    C:\Users\<username>\AppData\Local\Microsoft\Credentials\
+    C:\Users\<username>\AppData\Roaming\Microsoft\Credentials\
+    C:\Users\<username>\AppData\Local\Microsoft\Vault\
+Browsers Login Vaults:
+  Chrome:  C:\Users\<username>\AppData\Local\Google\Chrome\User Data\Default\Login Data
+  Edge:    C:\Users\<username>\AppData\Local\Microsoft\Edge\User Data\Default\Login Data
+  Firefox: C:\Users\<username>\AppData\Roaming\Mozilla\Firefox\Profiles\<profile>\logins.json (paired with key4.db)
+
+04. OS & COMPUTER IDENTIFICATION
+--------------------------------
+Computer Name:
+  Registry Key: SYSTEM\CurrentControlSet\Control\ComputerName\ActiveComputerName (Value: ComputerName)
+OS Details (Build, Installation Date):
+  Registry Key: SOFTWARE\Microsoft\Windows NT\CurrentVersion\
+Windows System Directory:
+  Path: C:\Windows\System32\
+
+05. WINDOWS EVENT LOGS (EVTX)
+-----------------------------
+Logs path on disk: C:\Windows\System32\winevt\Logs\
+Crucial logs to inspect:
+  Security.evtx                       ➔ Successful/Failed logons, audits
+  System.evtx                         ➔ Service installs, boot details, system errors
+  Application.evtx                    ➔ Database logs, application crashes
+  Microsoft-Windows-PowerShell%4Operational.evtx ➔ Script blocks executed
+  Microsoft-Windows-Sysmon%4Operational.evtx     ➔ Endpoint triage timeline
+
+Essential CTF Event IDs Table:
+| ID   | Channel  | Meaning / Forensic Detail                                            |
+| ---- | -------- | -------------------------------------------------------------------- |
+| 4624 | Security | Successful logon (Check logon type and source IP)                   |
+| 4625 | Security | Failed logon (Detect brute force attempts)                           |
+| 4634 | Security | Logoff (Session termination)                                        |
+| 4648 | Security | Logon attempted with explicit credentials (RunAs)                    |
+| 4672 | Security | Special privileges assigned to new logon (Admin rights)             |
+| 4688 | Security | Process creation (Check ProcessName and CommandLine)                 |
+| 4697 | Security | Service installed (Common backdoor installation, path included)      |
+| 4720 | Security | User account created                                                 |
+| 4722 | Security | User account enabled                                                 |
+| 4728 | Security | User added to security-enabled global group                          |
+| 4732 | Security | User added to security-enabled local group (e.g. Administrators)     |
+| 7045 | System   | New service installed (System log equivalent of 4697)                |
+| 1102 | Security | Security audit log cleared (Indicates anti-forensics activity)       |
+
+06. USER ACCOUNTS & HOME DIRECTORIES
+------------------------------------
+Base Path: C:\Users\
+Investigate individual user home folders:
+  C:\Users\Administrator\
+  C:\Users\<username>\
+  C:\Users\Public\
+Key folders to traverse within each profile:
+  Desktop\               ➔ User files, shortcuts, documents
+  Documents\             ➔ Configuration files, notes
+  Downloads\             ➔ Downloaded files, installers, zips
+  AppData\               ➔ Core application directories and secrets
+
+07. POWERSHELL CONSOLE HISTORY
+------------------------------
+Look for executed commands, parameters, downloads, or passwords typed in PowerShell.
+Path: C:\Users\<username>\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\
+Target File: ConsoleHost_history.txt
+
+08. COMMAND EXECUTION HISTORY
+-----------------------------
+Registry Locations for run commands and executions:
+  UserAssist Key (NTUSER.DAT):
+    NTUSER.DAT\Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist\
+  RunMRU (Recent commands typed in Run dialog):
+    NTUSER.DAT\Software\Microsoft\Windows\CurrentVersion\Explorer\RunMRU\
+Core shell executables:
+  cmd.exe, powershell.exe, wscript.exe, cscript.exe, rundll32.exe, regsvr32.exe, mshta.exe
+
+09. PREFETCH (PROGRAM EXECUTION PROOF)
+--------------------------------------
+Prefetch files (.pf) are created when applications are run, documenting files loaded and execution counts.
+Path: C:\Windows\Prefetch\
+Examples:
+  POWERSHELL.EXE-8A61376A.pf
+  CMD.EXE-A12B895C.pf
+  MIMIKATZ.EXE-C7D4E12F.pf
+
+10. TEMP DIRECTORIES (MALWARE DROPS)
+------------------------------------
+Attackers and installers frequently drop files into writable temp paths.
+System Temp:
+  C:\Windows\Temp\
+User Temp:
+  C:\Users\<username>\AppData\Local\Temp\
+Look for scripts (.ps1, .bat), executable payloads (.exe, .dll), or compressed archives (.zip, .rar).
+
+11. DOWNLOADS
+-------------
+Default landing pad for browser downloads.
+Path: C:\Users\<username>\Downloads\
+Check for: Downloader tools, initial payloads, phishing attachments, LNK files, script files.
+
+12. DESKTOP
+-----------
+Path: C:\Users\<username>\Desktop\
+Check for: Suspicious documents, challenge flags, text files with notes, tools left by the attacker.
+
+13. RECYCLE BIN
+---------------
+Path: C:\$Recycle.Bin\
+Structure: Contains subdirectories named after user SIDs (e.g. S-1-5-21-...).
+Triage Strategy:
+  - $I files: Metadata (deleted time, file size, original path).
+  - $R files: Real file content.
+
+14. LNK (RECENT SHORTCUTS)
+--------------------------
+Files automatically created when users open documents or execute programs.
+Path: C:\Users\<username>\AppData\Roaming\Microsoft\Windows\Recent\
+LNK files reveal:
+  - Target file's original directory path and volume serial number
+  - Creation/Modification/Access timestamps of target file
+
+15. RECENT FILES & JUMP LISTS
+-----------------------------
+Jump lists capture user history pinned or accessed within applications.
+Recent Files Path: C:\Users\<username>\AppData\Roaming\Microsoft\Windows\Recent\
+Automatic Destinations:
+  C:\Users\<username>\AppData\Roaming\Microsoft\Windows\Recent\AutomaticDestinations\
+Custom Destinations:
+  C:\Users\<username>\AppData\Roaming\Microsoft\Windows\Recent\CustomDestinations\
+
+16. SCHEDULED TASKS & PERSISTENCE
+---------------------------------
+Look for recurring commands, scripts, or backdoors.
+Path on Disk: C:\Windows\System32\Tasks\ (Saved as XML files)
+Registry Paths:
+  HKLM\Software\Microsoft\Windows\CurrentVersion\Run
+  HKLM\Software\Microsoft\Windows\CurrentVersion\RunOnce
+  HKCU\Software\Microsoft\Windows\CurrentVersion\Run
+  HKCU\Software\Microsoft\Windows\CurrentVersion\RunOnce
+
+17. SYSTEM SERVICES
+-------------------
+Registry Key: HKLM\SYSTEM\CurrentControlSet\Services\
+Check for newly created, altered, or disabled services (e.g. anti-virus services disabled).
+Event correlation: Search System.evtx for Event ID 7045.
+
+18. STARTUP FOLDERS
+-------------------
+Files and shortcuts in these folders run automatically when users log in.
+User Startup:
+  C:\Users\<username>\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\
+Global Startup:
+  C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\
+
+19. BROWSER PROFILES & HISTORY
+------------------------------
+Chrome Data:
+  Path: C:\Users\<username>\AppData\Local\Google\Chrome\User Data\Default\
+  Files: History (Web visits, download table), Cookies, Web Data, Bookmarks
+Edge Data:
+  Path: C:\Users\<username>\AppData\Local\Microsoft\Edge\User Data\Default\
+Firefox Data:
+  Path: C:\Users\<username>\AppData\Roaming\Mozilla\Firefox\Profiles\<profile>\
+  Files: places.sqlite (history/bookmarks), cookies.sqlite, logins.json, key4.db
+
+20. NETWORK CONFIGURATION & IP INFO
+-----------------------------------
+Registry TCP/IP Parameters:
+  SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\
+Provides Hostname, Interfaces list, DNS settings, active DHCP details.
+Local Host Table:
+  C:\Windows\System32\drivers\etc\hosts (Check for local DNS hijacking)
+
+21. WINDOWS FIREWALL LOGS
+-------------------------
+Path: C:\Windows\System32\LogFiles\Firewall\
+Target file: pfirewall.log (If firewall logging is enabled, lists dropped or accepted connections).
+
+22. IIS WEB SERVER LOGS
+-----------------------
+Path: C:\inetpub\logs\LogFiles\
+Structure: Subfolders named W3SVC1, W3SVC2 etc.
+Provides: Attacker HTTP requests, methods, user agents, requested files, and status codes.
+
+23. SYSTEM UPDATE & SETUP LOGS
+------------------------------
+Verify installation dates, applied patches, and updates.
+Path: C:\Windows\Logs\
+Subfolders to check: CBS\ (Component-Based Servicing), DISM\, WindowsUpdate\
+
+24. CRASH DUMPS & MEMORY ARTIFACTS
+----------------------------------
+Volatile memory dumps written to disk during crashes.
+Minidump Path: C:\Windows\Minidump\ (Mini crash dumps)
+Full RAM State: C:\Windows\MEMORY.DMP (Full physical memory dump)
+*Note:* Search for `.dmp`, `.tmp`, or `.log` files in memory dumps to find flags or encryption keys.
+
+25. SYSTEM METADATA FILES
+-------------------------
+Master File Table:
+  C:\$MFT              ➔ Database containing records of all files and folders on NTFS volume
+Windows Swap File:
+  C:\pagefile.sys      ➔ File containing pages of RAM written to disk (run strings to search)
+Hibernation State:
+  C:\hiberfil.sys      ➔ Full physical memory saved during hibernation (convert to raw RAM)
+
+26. CORE WINDOWS CTF SEARCH TIMELINE (SEARCH ORDER)
+---------------------------------------------------
+Use this priority sequence when triaging a Windows disk image:
+  1. Identify partitions and starting offsets (using mmls)
+  2. Parse Registry Hives (SAM, SYSTEM, SOFTWARE) for accounts & OS info
+  3. Search PowerShell History (ConsoleHost_history.txt)
+  4. Audit Event Logs (Security.evtx, System.evtx, Sysmon)
+  5. Check Prefetch (.pf) directory to verify program executions
+  6. Extract Browser History & Downloads databases
+  7. Check User Folders (Downloads, Desktop, Documents)
+  8. Recover Deleted Files from Recycle Bin ($Recycle.Bin)
+  9. Analyze LNK Files & Jump Lists for file access history
+  10. Audit Scheduled Tasks, Startup Folders, Services, and Run Keys
+  11. Search Temp Directories (C:\Windows\Temp, User Temp)
+  12. Check Network Configurations, Firewall Logs, and Hosts file
+
